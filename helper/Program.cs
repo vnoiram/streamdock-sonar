@@ -648,7 +648,7 @@ internal static class BatteryProvider
     private static IEnumerable<string> CandidateEndpoints()
     {
         var env = Environment.GetEnvironmentVariable("STEELSERIES_GG_ENDPOINT");
-        if (!string.IsNullOrWhiteSpace(env))
+        if (!string.IsNullOrWhiteSpace(env) && IsLoopbackEndpoint(env))
         {
             yield return env;
         }
@@ -670,7 +670,11 @@ internal static class BatteryProvider
                         var value = property.Value.GetString();
                         if (!string.IsNullOrWhiteSpace(value))
                         {
-                            yield return value.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? value : "http://" + value;
+                            var endpoint = value.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? value : "http://" + value;
+                            if (IsLoopbackEndpoint(endpoint))
+                            {
+                                yield return endpoint;
+                            }
                         }
                     }
                 }
@@ -689,6 +693,19 @@ internal static class BatteryProvider
         yield return Path.Combine(programData, "SteelSeries", "SteelSeries Engine 3", "coreProps.json");
         yield return Path.Combine(programData, "SteelSeries", "GG", "coreProps.json");
         yield return Path.Combine(local, "SteelSeries", "GG", "coreProps.json");
+    }
+
+    private static bool IsLoopbackEndpoint(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+        return uri.IsLoopback;
     }
 
     private static IReadOnlyList<BatteryState> ExtractBatteries(string json)
