@@ -1,0 +1,44 @@
+{
+  "Name": "Stream Dock Sonar",
+  "Description": "Control SteelSeries GG Sonar-related audio targets through a local Windows audio helper.",
+  "Author": "local",
+  "Version": "0.2.0",
+  "CodePath": "plugin.html",
+  "Icon": "icons/plugin",
+  "Category": "Audio",
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Actions": [
+    {
+      "UUID": "local.streamdock.sonar.control",
+      "Name": "Sonar Control",
+      "Tooltip": "Adjust or mute a configured Sonar virtual device or Windows audio session.",
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Sonar", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.micmute",
+      "Name": "Mic Mute",
+      "Tooltip": "Toggle mute for a configured microphone session or device.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Mic", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.diagnostics",
+      "Name": "Diagnostics",
+      "Tooltip": "Show Sonar helper diagnostics.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Diag", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="property-inspector.css">
+    <script src="property-inspector.js"></script>
+  </head>
+  <body>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Endpoint</div>
+      <input id="endpoint" class="sdpi-item-value" value="ws://127.0.0.1:41922">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Target kind</div>
+      <select id="targetKind" class="sdpi-item-value">
+        <option value="device">Device</option>
+        <option value="session">Session</option>
+      </select>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Target</div>
+      <input id="target" class="sdpi-item-value" list="targets" placeholder="Sonar - Gaming">
+      <datalist id="targets"></datalist>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Step</div>
+      <input id="volumeStep" class="sdpi-item-value" type="number" min="1" max="20" value="2">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Poll ms</div>
+      <input id="pollMs" class="sdpi-item-value" type="number" min="250" max="10000" value="1000">
+    </div>
+    <div class="sdpi-item block">
+      <div class="sdpi-item-label">Preset JSON</div>
+      <textarea id="presetJson" class="sdpi-item-value textarea" placeholder='[{"targetKind":"device","target":"Sonar - Gaming","amount":2},{"targetKind":"device","target":"Sonar - Chat","amount":-2}]'></textarea>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Targets</div>
+      <button id="refreshTargets" class="sdpi-button" type="button">Refresh</button>
+      <span id="status" class="sdpi-status">helper not checked</span>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Settings</div>
+      <button id="exportSettings" class="sdpi-button" type="button">Export</button>
+      <label class="sdpi-button" for="importSettings">Import</label>
+      <input id="importSettings" type="file" accept="application/json" hidden>
+    </div>
+  </body>
+</html>
