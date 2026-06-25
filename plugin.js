@@ -15,7 +15,13 @@
     presetApplyMode: 'both',
     presetApplyDelayMs: 700,
     displayMode: 'volume',
-    batteryName: ''
+    batteryName: '',
+    titleLabel: '',
+    invertKnob: false,
+    minVolume: 0,
+    maxVolume: 100,
+    generatedImages: true,
+    batteryWarnPercent: 20
   };
 
   var streamDockSocket = null;
@@ -42,6 +48,10 @@
 
   function setTitle(context, title) {
     sendToStreamDock({ event: 'setTitle', context: context, payload: { title: title } });
+  }
+
+  function setImage(context, image) {
+    sendToStreamDock({ event: 'setImage', context: context, payload: { image: image } });
   }
 
   function logMessage(message) {
@@ -103,7 +113,7 @@
           target: item.target || '',
           targetId: item.targetId || '',
           amount: Number(item.amount) || 0,
-          setVolume: item.setVolume === undefined ? null : Number(item.setVolume),
+        setVolume: item.setVolume === undefined ? null : clampVolume(Number(item.setVolume), settings),
           mute: item.mute
         };
       }).filter(function (item) { return item.target || item.targetId; });
@@ -142,7 +152,7 @@
         return 'Battery\noffline';
       }
       if (typeof battery.percent === 'number') {
-        return (battery.name || settings.batteryName || 'Headset') + '\n' + Math.round(battery.percent) + '%';
+        return (settings.titleLabel || battery.name || settings.batteryName || 'Headset') + '\n' + Math.round(battery.percent) + '%' + (battery.charging ? '\ncharging' : '');
       }
       return 'Battery\nunknown';
     }
@@ -157,20 +167,68 @@
     }
     var current = targetState(settings);
     if (current.available === false) {
-      return settings.target + '\nmissing';
+      return (settings.titleLabel || settings.target) + '\nmissing';
     }
     if (current.muted) {
-      return settings.target + '\nmuted';
+      return (settings.titleLabel || settings.target) + '\nmuted';
     }
     if (typeof current.volume === 'number') {
-      return settings.target + '\n' + Math.round(current.volume) + '%';
+      return (settings.titleLabel || settings.target) + '\n' + Math.round(current.volume) + '%';
     }
-    return settings.target;
+    return settings.titleLabel || settings.target;
   }
 
   function refreshTitles() {
     Object.keys(contexts).forEach(function (context) {
       setTitle(context, titleFor(context));
+      if (settingsFor(context).generatedImages !== false) {
+        setImage(context, imageFor(context));
+      }
+    });
+  }
+
+  function imageFor(context) {
+    var settings = settingsFor(context);
+    if (!helperState.connected) {
+      return svgImage('#343a40', '#adb5bd', 'SON', 'OFF', 0);
+    }
+    if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
+      var battery = helperState.batteries[settings.batteryName || settings.target] || helperState.batteries.default || {};
+      var percent = Number(battery.percent);
+      var warn = Number(settings.batteryWarnPercent) || 20;
+      return svgImage(Number.isFinite(percent) && percent <= warn ? '#7f1d1d' : '#1f4f46', '#ffffff', Number.isFinite(percent) ? Math.round(percent) + '%' : 'BAT', battery.charging ? 'CHG' : '', Number.isFinite(percent) ? percent : 0);
+    }
+    var state = targetState(settings);
+    if (state.available === false) {
+      return svgImage('#4a3a22', '#facc15', 'MISS', settings.titleLabel || settings.target || '', 0);
+    }
+    if (state.muted) {
+      return svgImage('#742a2a', '#ffffff', 'MUTE', settings.titleLabel || settings.target || '', 100);
+    }
+    var volume = Number(state.volume);
+    return svgImage('#234e52', '#ffffff', Number.isFinite(volume) ? Math.round(volume) + '%' : 'SON', settings.titleLabel || settings.target || '', Number.isFinite(volume) ? volume : 40);
+  }
+
+  function svgImage(background, foreground, main, sub, fillPercent) {
+    var fill = Math.max(0, Math.min(100, Number(fillPercent) || 0));
+    var barHeight = Math.round(116 * fill / 100);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">' +
+      '<rect width="144" height="144" rx="20" fill="' + background + '"/>' +
+      '<rect x="14" y="' + (124 - barHeight) + '" width="116" height="' + barHeight + '" rx="10" fill="' + foreground + '" opacity="0.16"/>' +
+      '<text x="72" y="67" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="' + foreground + '">' + escapeSvg(main) + '</text>' +
+      '<text x="72" y="101" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="' + foreground + '">' + escapeSvg(truncateImageText(sub)) + '</text>' +
+      '</svg>';
+    return 'data:image/svg+xml;charset=utf8,' + encodeURIComponent(svg);
+  }
+
+  function truncateImageText(value) {
+    value = String(value || '');
+    return value.length > 10 ? value.slice(0, 10) : value;
+  }
+
+  function escapeSvg(value) {
+    return String(value || '').replace(/[&<>"]/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch];
     });
   }
 
@@ -294,7 +352,7 @@
         targetKind: target.targetKind,
         target: target.target,
         targetId: target.targetId || settings.targetId,
-        value: target.setVolume
+        value: clampVolume(target.setVolume, settings)
       }) && ok;
     }
     if (target.mute !== undefined) {
@@ -311,6 +369,9 @@
 
   function adjustVolume(context, ticks) {
     var settings = settingsFor(context);
+    if (settings.invertKnob === true || settings.invertKnob === 'true') {
+      ticks = -ticks;
+    }
     var targets = presetTargets(settings, ticks);
     if (targets.length === 0 || !ticks) {
       refreshTitles();
@@ -321,13 +382,18 @@
     }
     var ok = true;
     targets.forEach(function (target) {
+      var current = helperState.targets[target.targetId || target.target] || helperState.targets[target.target] || {};
+      var targetSetVolume = target.setVolume;
+      if ((targetSetVolume === null || !Number.isFinite(targetSetVolume)) && typeof current.volume === 'number') {
+        targetSetVolume = clampVolume(Number(current.volume) + Number(target.amount || 0), settings);
+      }
       ok = helperSend({
-        command: target.setVolume !== null && Number.isFinite(target.setVolume) ? 'set_volume' : 'volume_delta',
+        command: targetSetVolume !== null && Number.isFinite(targetSetVolume) ? 'set_volume' : 'volume_delta',
         targetKind: target.targetKind,
         target: target.target,
         targetId: target.targetId || settings.targetId,
         amount: target.amount,
-        value: target.setVolume
+        value: targetSetVolume
       }) && ok;
     });
     if (ok) {
@@ -335,6 +401,19 @@
     } else {
       showAlert(context);
     }
+  }
+
+  function clampVolume(value, settings) {
+    var min = Number(settings.minVolume);
+    var max = Number(settings.maxVolume);
+    if (!Number.isFinite(min)) min = 0;
+    if (!Number.isFinite(max)) max = 100;
+    if (max < min) {
+      var tmp = max;
+      max = min;
+      min = tmp;
+    }
+    return Math.max(min, Math.min(max, Number(value) || 0));
   }
 
   function selectPresetByDial(context, ticks) {

@@ -17,7 +17,13 @@
     presetApplyMode: 'both',
     presetApplyDelayMs: 700,
     displayMode: 'volume',
-    batteryName: ''
+    batteryName: '',
+    titleLabel: '',
+    invertKnob: false,
+    minVolume: 0,
+    maxVolume: 100,
+    generatedImages: true,
+    batteryWarnPercent: 20
   };
   var helperSocket = null;
   var lastSnapshot = { deviceStates: [], sessionStates: [] };
@@ -34,7 +40,11 @@
     settings.targetKind = byId('targetKind').value;
     settings.target = byId('target').value.trim();
     settings.targetId = byId('targetId').value.trim();
+    settings.titleLabel = byId('titleLabel').value.trim();
     settings.volumeStep = Number(byId('volumeStep').value) || 2;
+    settings.minVolume = Number(byId('minVolume').value) || 0;
+    settings.maxVolume = Number(byId('maxVolume').value) || 100;
+    settings.invertKnob = byId('invertKnob').checked;
     settings.pollMs = Number(byId('pollMs').value) || 1000;
     settings.presetJson = byId('presetJson').value.trim();
     settings.presetsJson = byId('presetsJson').value.trim();
@@ -44,6 +54,8 @@
     settings.presetApplyDelayMs = Number(byId('presetApplyDelayMs').value) || 700;
     settings.displayMode = byId('displayMode').value;
     settings.batteryName = byId('batteryName').value.trim();
+    settings.generatedImages = byId('generatedImages').checked;
+    settings.batteryWarnPercent = Number(byId('batteryWarnPercent').value) || 20;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
     renderPresetNames();
   }
@@ -107,7 +119,11 @@
     settings = Object.assign({}, settings, next || {});
     Object.keys(settings).forEach(function (key) {
       if (byId(key)) {
-        byId(key).value = settings[key];
+        if (byId(key).type === 'checkbox') {
+          byId(key).checked = settings[key] === true || settings[key] === 'true';
+        } else {
+          byId(key).value = settings[key];
+        }
       }
     });
     renderPresetNames();
@@ -234,8 +250,11 @@
   };
 
   window.addEventListener('DOMContentLoaded', function () {
-    ['endpoint', 'targetKind', 'target', 'targetId', 'volumeStep', 'displayMode', 'batteryName'].forEach(function (id) {
+    ['endpoint', 'targetKind', 'target', 'targetId', 'titleLabel', 'volumeStep', 'minVolume', 'maxVolume', 'displayMode', 'batteryName', 'batteryWarnPercent'].forEach(function (id) {
       byId(id).addEventListener('input', update);
+      byId(id).addEventListener('change', update);
+    });
+    ['invertKnob', 'generatedImages'].forEach(function (id) {
       byId(id).addEventListener('change', update);
     });
     ['pollMs', 'presetJson', 'presetsJson', 'presetName', 'presetDialMode', 'presetApplyMode', 'presetApplyDelayMs'].forEach(function (id) {

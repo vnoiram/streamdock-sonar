@@ -31,6 +31,11 @@ Initial actions:
 - Per-target poll interval
 - Optional exact device/session ID matching
 - Headset battery display when SteelSeries GG exposes battery data locally
+- Optional title alias for cleaner key labels
+- Generated key images for volume, mute, missing target, and headset battery states
+- Invert knob direction
+- Min/max volume clamp for relative and preset volume changes
+- Low-battery warning threshold for generated battery images
 
 Default helper endpoint:
 
@@ -67,6 +72,8 @@ Package this repository root as the plugin directory, or copy these files into a
 - `icons/`
 
 Configure a target in the Property Inspector before use. The plugin intentionally does nothing when `Target` is empty, so it does not accidentally change the default system volume.
+
+Use `Title label` to override long Windows/Sonar target names on the key. `Volume min` and `Volume max` clamp both relative knob changes and named preset `setVolume` values. `Invert knob` reverses dial direction. `Images` enables generated state images; `Battery warn` controls when battery images switch to the warning color.
 
 Use the Property Inspector's `Refresh` button to ask the helper for current output devices and audio sessions. The returned names populate the target autocomplete list.
 

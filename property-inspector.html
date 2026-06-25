@@ -27,6 +27,10 @@
       <input id="targetId" class="sdpi-item-value" placeholder="optional exact device/session id">
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">Title label</div>
+      <input id="titleLabel" class="sdpi-item-value" placeholder="optional display alias">
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Display</div>
       <select id="displayMode" class="sdpi-item-value">
         <option value="volume">Volume</option>
@@ -41,6 +45,18 @@
     <div class="sdpi-item">
       <div class="sdpi-item-label">Step</div>
       <input id="volumeStep" class="sdpi-item-value" type="number" min="1" max="20" value="2">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Volume min</div>
+      <input id="minVolume" class="sdpi-item-value" type="number" min="0" max="100" value="0">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Volume max</div>
+      <input id="maxVolume" class="sdpi-item-value" type="number" min="0" max="100" value="100">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Invert knob</div>
+      <input id="invertKnob" class="sdpi-checkbox" type="checkbox">
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Poll ms</div>
@@ -77,6 +93,15 @@
     <div class="sdpi-item">
       <div class="sdpi-item-label">Apply delay</div>
       <input id="presetApplyDelayMs" class="sdpi-item-value" type="number" min="100" max="3000" value="700">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Images</div>
+      <input id="generatedImages" class="sdpi-checkbox" type="checkbox" checked>
+      <span class="sdpi-status">show volume/battery state images</span>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Battery warn</div>
+      <input id="batteryWarnPercent" class="sdpi-item-value" type="number" min="1" max="100" value="20">
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Targets</div>
