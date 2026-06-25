@@ -23,6 +23,10 @@ Initial actions:
 - Refresh target autocomplete from the helper
 - Export/import action settings
 - Apply multi-target preset JSON
+- Apply named mixer presets with absolute volume and mute values
+- Select named presets with a knob and apply them on press, after rotation stops, or both
+- Capture current helper-reported target volume/mute states into a named preset
+- Copy/paste action settings between keys from the Property Inspector
 - Mic mute action
 - Per-target poll interval
 - Optional exact device/session ID matching
@@ -129,6 +133,32 @@ Preset JSON example:
   { "targetKind": "device", "target": "Sonar - Chat", "amount": -2 }
 ]
 ```
+
+Named preset example:
+
+```json
+{
+  "Streaming": [
+    { "targetKind": "device", "target": "Sonar - Gaming", "setVolume": 70 },
+    { "targetKind": "device", "target": "Sonar - Chat", "setVolume": 45, "mute": false },
+    { "targetKind": "session", "target": "Discord", "setVolume": 80 }
+  ],
+  "Quiet": [
+    { "targetKind": "device", "target": "Sonar - Gaming", "setVolume": 35 },
+    { "targetKind": "device", "target": "Sonar - Chat", "mute": true }
+  ]
+}
+```
+
+Set `Preset name` to one of the object keys. Pressing the key applies `setVolume` and `mute` values; rotating a knob still uses `amount`/`volumeStep` for relative changes.
+
+For knob-driven preset selection, set `Preset dial` to `Select preset`. Rotation cycles through the names in `Presets`, and `Apply` controls when the selected preset is sent:
+
+- `Press and rotate stop`: apply on key press and after rotation has been idle for `Apply delay`.
+- `Rotate stop only`: apply only after knob rotation stops.
+- `Press only`: rotate to preview/select, then press to apply.
+
+Use `Refresh` to load current helper target states, set `Preset name`, then press `Capture` to add or overwrite that named preset in `Presets`. The capture uses the selected `Target kind`: `Device` captures current device volumes/mutes, and `Session` captures current audio-session volumes/mutes.
 
 ## Target Examples
 

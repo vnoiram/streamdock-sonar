@@ -11,10 +11,16 @@
     volumeStep: 2,
     pollMs: 1000,
     presetJson: '',
+    presetsJson: '',
+    presetName: '',
+    presetDialMode: 'volume',
+    presetApplyMode: 'both',
+    presetApplyDelayMs: 700,
     displayMode: 'volume',
     batteryName: ''
   };
   var helperSocket = null;
+  var lastSnapshot = { deviceStates: [], sessionStates: [] };
 
   function byId(id) {
     return document.getElementById(id);
@@ -31,9 +37,15 @@
     settings.volumeStep = Number(byId('volumeStep').value) || 2;
     settings.pollMs = Number(byId('pollMs').value) || 1000;
     settings.presetJson = byId('presetJson').value.trim();
+    settings.presetsJson = byId('presetsJson').value.trim();
+    settings.presetName = byId('presetName').value.trim();
+    settings.presetDialMode = byId('presetDialMode').value;
+    settings.presetApplyMode = byId('presetApplyMode').value;
+    settings.presetApplyDelayMs = Number(byId('presetApplyDelayMs').value) || 700;
     settings.displayMode = byId('displayMode').value;
     settings.batteryName = byId('batteryName').value.trim();
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
+    renderPresetNames();
   }
 
   function setStatus(text) {
@@ -53,6 +65,8 @@
     helperSocket.onmessage = function (event) {
       var message = JSON.parse(event.data);
       if (message.event === 'targets') {
+        lastSnapshot.deviceStates = message.deviceStates || [];
+        lastSnapshot.sessionStates = message.sessionStates || [];
         renderTargets(message);
         setStatus('targets loaded');
         helperSocket.close();
@@ -96,9 +110,43 @@
         byId(key).value = settings[key];
       }
     });
+    renderPresetNames();
+  }
+
+  function parsePresets() {
+    if (!settings.presetsJson) {
+      return {};
+    }
+    var parsed = JSON.parse(settings.presetsJson);
+    if (Array.isArray(parsed)) {
+      return parsed.reduce(function (map, item) {
+        if (item && item.name) {
+          map[item.name] = item.targets || [];
+        }
+        return map;
+      }, {});
+    }
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  }
+
+  function renderPresetNames() {
+    var list = byId('presetNames');
+    if (!list) return;
+    list.innerHTML = '';
+    try {
+      Object.keys(parsePresets()).forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        list.appendChild(option);
+      });
+      setStatus('ready');
+    } catch (error) {
+      setStatus('invalid presets JSON');
+    }
   }
 
   function exportSettings() {
+    update();
     var blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -114,6 +162,59 @@
       applySettings(JSON.parse(text));
       update();
     });
+  }
+
+  function copySettings() {
+    update();
+    navigator.clipboard.writeText(JSON.stringify(settings, null, 2)).then(function () {
+      setStatus('settings copied');
+    }).catch(function () {
+      setStatus('copy failed');
+    });
+  }
+
+  function pasteSettings() {
+    navigator.clipboard.readText().then(function (text) {
+      applySettings(JSON.parse(text));
+      update();
+      setStatus('settings pasted');
+    }).catch(function () {
+      setStatus('paste failed');
+    });
+  }
+
+  function capturePreset() {
+    var states = settings.targetKind === 'session' ? lastSnapshot.sessionStates : lastSnapshot.deviceStates;
+    if (!states || !states.length) {
+      setStatus('refresh targets first');
+      refreshTargets();
+      return;
+    }
+    var name = byId('presetName').value.trim() || 'Captured';
+    var presets;
+    try {
+      presets = settings.presetsJson ? JSON.parse(settings.presetsJson) : {};
+      if (!presets || Array.isArray(presets) || typeof presets !== 'object') {
+        presets = {};
+      }
+    } catch (error) {
+      setStatus('invalid presets JSON');
+      return;
+    }
+    presets[name] = states.map(function (item) {
+      return {
+        targetKind: settings.targetKind,
+        target: item.name,
+        targetId: item.id || '',
+        setVolume: Math.round(Number(item.state && item.state.volumePercent) || 0),
+        mute: !!(item.state && item.state.muted)
+      };
+    });
+    settings.presetsJson = JSON.stringify(presets, null, 2);
+    settings.presetName = name;
+    applySettings(settings);
+    update();
+    setStatus('preset captured');
   }
 
   window.connectElgatoStreamDeckSocket = function (port, uuid, registerEvent, info, actionInfo) {
@@ -137,11 +238,14 @@
       byId(id).addEventListener('input', update);
       byId(id).addEventListener('change', update);
     });
-    ['pollMs', 'presetJson'].forEach(function (id) {
+    ['pollMs', 'presetJson', 'presetsJson', 'presetName', 'presetDialMode', 'presetApplyMode', 'presetApplyDelayMs'].forEach(function (id) {
       byId(id).addEventListener('input', update);
       byId(id).addEventListener('change', update);
     });
     byId('refreshTargets').addEventListener('click', refreshTargets);
+    byId('capturePreset').addEventListener('click', capturePreset);
+    byId('copySettings').addEventListener('click', copySettings);
+    byId('pasteSettings').addEventListener('click', pasteSettings);
     byId('exportSettings').addEventListener('click', exportSettings);
     byId('importSettings').addEventListener('change', importSettings);
   });

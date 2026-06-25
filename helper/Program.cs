@@ -98,6 +98,8 @@ internal static class Program
                     sessions = Audio.ListSessions(),
                     deviceDetails = Audio.ListDeviceDetails(),
                     sessionDetails = Audio.ListSessionDetails(),
+                    deviceStates = Audio.ListDeviceStates(),
+                    sessionStates = Audio.ListSessionStates(),
                     batteries = await BatteryProvider.ListBatteriesAsync()
                 });
                 continue;
@@ -132,6 +134,18 @@ internal static class Program
             {
                 Log($"volume_delta {command.TargetKind}:{command.Target} {command.Amount}");
                 Audio.AdjustVolume(command.TargetKind ?? "device", command.Target, command.TargetId, command.Amount);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+            }
+            else if (command.Command == "set_volume")
+            {
+                Log($"set_volume {command.TargetKind}:{command.Target} {command.Value}");
+                Audio.SetVolume(command.TargetKind ?? "device", command.Target, command.TargetId, command.Value);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+            }
+            else if (command.Command == "set_mute")
+            {
+                Log($"set_mute {command.TargetKind}:{command.Target} {command.Value}");
+                Audio.SetMute(command.TargetKind ?? "device", command.Target, command.TargetId, command.Value != 0);
                 await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
             }
         }
@@ -215,7 +229,7 @@ internal static class Program
         }
     }
 
-    private sealed record HelperCommand(string? Command, string? TargetKind, string? Target, string? TargetId, float Amount, int? PollMs);
+    private sealed record HelperCommand(string? Command, string? TargetKind, string? Target, string? TargetId, float Amount, float Value, int? PollMs);
     private sealed class TargetRef
     {
         public TargetRef(string targetKind, string target, int pollMs, string? targetId)
@@ -312,6 +326,24 @@ internal sealed class AudioController
         return names.Values.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    public IReadOnlyList<TargetStateInfo> ListDeviceStates()
+    {
+        return ListDeviceDetails()
+            .Select(item => new TargetStateInfo(item.Id, item.Name, TryGetDeviceState(item.Name, item.Id)))
+            .Where(item => item.State is not null)
+            .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public IReadOnlyList<TargetStateInfo> ListSessionStates()
+    {
+        return ListSessionDetails()
+            .Select(item => new TargetStateInfo(item.Id, item.Name, TryGetSessionState(item.Name, item.Id)))
+            .Where(item => item.State is not null)
+            .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public void ToggleMute(string targetKind, string target, string? targetId)
     {
         if (IsSession(targetKind))
@@ -356,6 +388,33 @@ internal sealed class AudioController
         }
         device.EndpointVolume.GetMasterVolumeLevelScalar(out var currentDevice);
         device.EndpointVolume.SetMasterVolumeLevelScalar(Clamp01(currentDevice + amount / 100f), Guid.Empty);
+    }
+
+    public void SetVolume(string targetKind, string target, string? targetId, float value)
+    {
+        var scalar = Clamp01(value / 100f);
+        if (IsSession(targetKind))
+        {
+            using var session = FindSession(target, targetId);
+            session?.SimpleVolume.SetMasterVolume(scalar, Guid.Empty);
+            return;
+        }
+
+        using var device = FindDevice(target, targetId);
+        device?.EndpointVolume.SetMasterVolumeLevelScalar(scalar, Guid.Empty);
+    }
+
+    public void SetMute(string targetKind, string target, string? targetId, bool muted)
+    {
+        if (IsSession(targetKind))
+        {
+            using var session = FindSession(target, targetId);
+            session?.SimpleVolume.SetMute(muted, Guid.Empty);
+            return;
+        }
+
+        using var device = FindDevice(target, targetId);
+        device?.EndpointVolume.SetMute(muted, Guid.Empty);
     }
 
     private static AudioState? TryGetDeviceState(string target, string? targetId)
@@ -512,6 +571,7 @@ internal sealed class AudioController
 
 internal sealed record AudioState(float VolumePercent, bool Muted);
 internal sealed record TargetInfo(string Id, string Name);
+internal sealed record TargetStateInfo(string Id, string Name, AudioState? State);
 internal sealed record BatteryState(string Name, float Percent, bool? Charging);
 
 internal static class BatteryProvider

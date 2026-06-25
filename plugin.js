@@ -9,6 +9,11 @@
     volumeStep: 2,
     pollMs: 1000,
     presetJson: '',
+    presetsJson: '',
+    presetName: '',
+    presetDialMode: 'volume',
+    presetApplyMode: 'both',
+    presetApplyDelayMs: 700,
     displayMode: 'volume',
     batteryName: ''
   };
@@ -19,6 +24,7 @@
   var reconnectTimer = null;
   var contexts = {};
   var helperState = { connected: false, targets: {}, batteries: {}, lastError: '' };
+  var presetDialState = {};
 
   function parseJson(value, fallback) {
     try {
@@ -55,6 +61,10 @@
   }
 
   function presetTargets(settings, fallbackTicks) {
+    var namedPreset = namedPresetTargets(settings);
+    if (namedPreset) {
+      return namedPreset;
+    }
     if (!settings.presetJson) {
       return [{ targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, amount: fallbackTicks * (Number(settings.volumeStep) || 2) }];
     }
@@ -71,6 +81,47 @@
           amount: Number(item.amount) || fallbackTicks * (Number(settings.volumeStep) || 2)
         };
       }).filter(function (item) { return item.target; });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function namedPresetTargets(settings) {
+    if (!settings.presetsJson || !settings.presetName) {
+      return null;
+    }
+    try {
+      var presets = JSON.parse(settings.presetsJson);
+      var preset = Array.isArray(presets) ? presets.filter(function (item) { return item && item.name === settings.presetName; })[0] : presets[settings.presetName];
+      var targets = preset && (preset.targets || preset);
+      if (!Array.isArray(targets)) {
+        return null;
+      }
+      return targets.map(function (item) {
+        return {
+          targetKind: item.targetKind || settings.targetKind,
+          target: item.target || '',
+          targetId: item.targetId || '',
+          amount: Number(item.amount) || 0,
+          setVolume: item.setVolume === undefined ? null : Number(item.setVolume),
+          mute: item.mute
+        };
+      }).filter(function (item) { return item.target || item.targetId; });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function presetNames(settings) {
+    if (!settings.presetsJson) {
+      return [];
+    }
+    try {
+      var presets = JSON.parse(settings.presetsJson);
+      if (Array.isArray(presets)) {
+        return presets.map(function (item) { return item && item.name; }).filter(Boolean);
+      }
+      return Object.keys(presets || {});
     } catch (error) {
       return [];
     }
@@ -208,23 +259,54 @@
     setTitle(message.context, titleFor(message.context));
   }
 
-  function toggleMute(context) {
+  function applyPreset(context) {
     var settings = settingsFor(context);
     var targets = presetTargets(settings, 1);
-    if (targets.length === 0 || (!settings.target && !settings.presetJson)) {
+    if (targets.length === 0 || (!settings.target && !settings.presetJson && !(settings.presetsJson && settings.presetName))) {
       refreshTitles();
       showAlert(context);
       return;
     }
     var ok = true;
     targets.forEach(function (target) {
-      ok = helperSend({ command: 'toggle_mute', targetKind: target.targetKind, target: target.target, targetId: target.targetId || settings.targetId }) && ok;
+      if (target.setVolume !== null || target.mute !== undefined) {
+        ok = applyPresetTarget(target, settings) && ok;
+      } else {
+        ok = helperSend({ command: 'toggle_mute', targetKind: target.targetKind, target: target.target, targetId: target.targetId || settings.targetId }) && ok;
+      }
     });
     if (ok) {
       showOk(context);
     } else {
       showAlert(context);
     }
+  }
+
+  function toggleMute(context) {
+    applyPreset(context);
+  }
+
+  function applyPresetTarget(target, settings) {
+    var ok = true;
+    if (target.setVolume !== null && Number.isFinite(target.setVolume)) {
+      ok = helperSend({
+        command: 'set_volume',
+        targetKind: target.targetKind,
+        target: target.target,
+        targetId: target.targetId || settings.targetId,
+        value: target.setVolume
+      }) && ok;
+    }
+    if (target.mute !== undefined) {
+      ok = helperSend({
+        command: 'set_mute',
+        targetKind: target.targetKind,
+        target: target.target,
+        targetId: target.targetId || settings.targetId,
+        value: target.mute === true || target.mute === 'true' ? 1 : 0
+      }) && ok;
+    }
+    return ok;
   }
 
   function adjustVolume(context, ticks) {
@@ -240,11 +322,12 @@
     var ok = true;
     targets.forEach(function (target) {
       ok = helperSend({
-        command: 'volume_delta',
+        command: target.setVolume !== null && Number.isFinite(target.setVolume) ? 'set_volume' : 'volume_delta',
         targetKind: target.targetKind,
         target: target.target,
         targetId: target.targetId || settings.targetId,
-        amount: target.amount
+        amount: target.amount,
+        value: target.setVolume
       }) && ok;
     });
     if (ok) {
@@ -254,22 +337,60 @@
     }
   }
 
+  function selectPresetByDial(context, ticks) {
+    var settings = settingsFor(context);
+    var names = presetNames(settings);
+    if (!names.length || !ticks) {
+      showAlert(context);
+      return;
+    }
+    var currentName = presetDialState[context] && presetDialState[context].name || settings.presetName || names[0];
+    var index = names.indexOf(currentName);
+    if (index === -1) {
+      index = 0;
+    }
+    index = (index + (ticks > 0 ? 1 : -1) + names.length) % names.length;
+    presetDialState[context] = presetDialState[context] || {};
+    presetDialState[context].name = names[index];
+    contexts[context].settings = Object.assign({}, contexts[context].settings || {}, { presetName: names[index] });
+    setTitle(context, 'Preset\n' + names[index] + '\nready');
+
+    clearTimeout(presetDialState[context].timer);
+    if (settings.presetApplyMode === 'rotateEnd' || settings.presetApplyMode === 'both') {
+      presetDialState[context].timer = setTimeout(function () {
+        if (contexts[context]) {
+          applyPreset(context);
+        }
+      }, Math.max(100, Number(settings.presetApplyDelayMs) || 700));
+    }
+  }
+
   function handleMessage(event) {
     var message = parseJson(event.data, {});
     if (message.event === 'willAppear' || message.event === 'didReceiveSettings') {
       rememberContext(message);
     } else if (message.event === 'willDisappear') {
+      if (presetDialState[message.context] && presetDialState[message.context].timer) {
+        clearTimeout(presetDialState[message.context].timer);
+      }
+      delete presetDialState[message.context];
       delete contexts[message.context];
     } else if (message.event === 'keyDown') {
       if (contexts[message.context] && contexts[message.context].action === 'local.streamdock.sonar.battery') {
         var batterySettings = settingsFor(message.context);
         helperSend({ command: 'battery', target: batterySettings.batteryName || batterySettings.target, pollMs: Number(batterySettings.pollMs) || 1000 });
+      } else if (settingsFor(message.context).presetDialMode === 'select' && settingsFor(message.context).presetApplyMode === 'rotateEnd') {
+        refreshTitles();
       } else {
-        toggleMute(message.context);
+        applyPreset(message.context);
       }
     } else if (message.event === 'dialRotate') {
       var ticks = Number(message.payload && (message.payload.ticks || message.payload.delta || message.payload.rotation)) || 0;
-      adjustVolume(message.context, ticks);
+      if (settingsFor(message.context).presetDialMode === 'select' && presetNames(settingsFor(message.context)).length) {
+        selectPresetByDial(message.context, ticks);
+      } else {
+        adjustVolume(message.context, ticks);
+      }
     }
   }
 
