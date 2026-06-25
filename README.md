@@ -25,6 +25,8 @@ Initial actions:
 - Apply multi-target preset JSON
 - Mic mute action
 - Per-target poll interval
+- Optional exact device/session ID matching
+- Headset battery display when SteelSeries GG exposes battery data locally
 
 Default helper endpoint:
 
@@ -115,7 +117,9 @@ dotnet run --project helper\SonarAudioHelper.csproj -- --log-file "$env:TEMP\str
 
 It listens on `http://127.0.0.1:41922/` for WebSocket upgrades. `targetKind=device` matches active render device friendly names by substring. `targetKind=session` matches audio session display names or process names by substring.
 
-It also supports `{ "command": "list_targets" }`, returning current device and session names for Property Inspector autocomplete.
+It also supports `{ "command": "list_targets" }`, returning current device/session names and IDs for Property Inspector autocomplete.
+
+Battery display uses the helper command `{ "command": "battery", "target": "headset name" }`. The helper first checks `STREAMDOCK_SONAR_BATTERY_JSON`, then tries local SteelSeries GG/Engine `coreProps.json` endpoints and scans returned JSON for battery-like fields. If GG does not expose the headset battery through those local files or endpoints, the action shows `Battery unknown`.
 
 Preset JSON example:
 

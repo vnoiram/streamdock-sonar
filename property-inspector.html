@@ -23,6 +23,22 @@
       <datalist id="targets"></datalist>
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">Target ID</div>
+      <input id="targetId" class="sdpi-item-value" placeholder="optional exact device/session id">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Display</div>
+      <select id="displayMode" class="sdpi-item-value">
+        <option value="volume">Volume</option>
+        <option value="battery">Battery</option>
+      </select>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Battery</div>
+      <input id="batteryName" class="sdpi-item-value" list="batteries" placeholder="headset name">
+      <datalist id="batteries"></datalist>
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Step</div>
       <input id="volumeStep" class="sdpi-item-value" type="number" min="1" max="20" value="2">
     </div>

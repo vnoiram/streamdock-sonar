@@ -5,9 +5,12 @@
     endpoint: 'ws://127.0.0.1:41922',
     targetKind: 'device',
     target: '',
+    targetId: '',
     volumeStep: 2,
     pollMs: 1000,
-    presetJson: ''
+    presetJson: '',
+    displayMode: 'volume',
+    batteryName: ''
   };
 
   var streamDockSocket = null;
@@ -15,7 +18,7 @@
   var helperSocket = null;
   var reconnectTimer = null;
   var contexts = {};
-  var helperState = { connected: false, targets: {}, lastError: '' };
+  var helperState = { connected: false, targets: {}, batteries: {}, lastError: '' };
 
   function parseJson(value, fallback) {
     try {
@@ -53,7 +56,7 @@
 
   function presetTargets(settings, fallbackTicks) {
     if (!settings.presetJson) {
-      return [{ targetKind: settings.targetKind, target: settings.target, amount: fallbackTicks * (Number(settings.volumeStep) || 2) }];
+      return [{ targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, amount: fallbackTicks * (Number(settings.volumeStep) || 2) }];
     }
     try {
       var parsed = JSON.parse(settings.presetJson);
@@ -64,6 +67,7 @@
         return {
           targetKind: item.targetKind || settings.targetKind,
           target: item.target || '',
+          targetId: item.targetId || '',
           amount: Number(item.amount) || fallbackTicks * (Number(settings.volumeStep) || 2)
         };
       }).filter(function (item) { return item.target; });
@@ -73,13 +77,23 @@
   }
 
   function targetState(settings) {
-    return helperState.targets[settings.target] || {};
+    return helperState.targets[settings.targetId || settings.target] || helperState.targets[settings.target] || {};
   }
 
   function titleFor(context) {
     var settings = settingsFor(context);
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.diagnostics') {
       return 'Sonar\n' + (helperState.connected ? 'ok' : 'offline') + '\n' + (helperState.lastError || settings.endpoint);
+    }
+    if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
+      var battery = helperState.batteries[settings.batteryName || settings.target] || helperState.batteries.default || {};
+      if (!helperState.connected) {
+        return 'Battery\noffline';
+      }
+      if (typeof battery.percent === 'number') {
+        return (battery.name || settings.batteryName || 'Headset') + '\n' + Math.round(battery.percent) + '%';
+      }
+      return 'Battery\nunknown';
     }
     if (!settings.target) {
       return 'Sonar\nunset';
@@ -133,7 +147,10 @@
       Object.keys(contexts).forEach(function (context) {
         var contextSettings = settingsFor(context);
         if (contextSettings.target) {
-          helperSend({ command: 'subscribe', targetKind: contextSettings.targetKind, target: contextSettings.target, pollMs: Number(contextSettings.pollMs) || 1000 });
+          helperSend({ command: 'subscribe', targetKind: contextSettings.targetKind, target: contextSettings.target, targetId: contextSettings.targetId, pollMs: Number(contextSettings.pollMs) || 1000 });
+        }
+        if (contextSettings.displayMode === 'battery' || (contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery') {
+          helperSend({ command: 'battery', target: contextSettings.batteryName || contextSettings.target, pollMs: Number(contextSettings.pollMs) || 1000 });
         }
       });
     };
@@ -142,6 +159,14 @@
       var message = parseJson(event.data, {});
       if (message.event === 'state' && message.target) {
         helperState.targets[message.target] = Object.assign({}, helperState.targets[message.target] || {}, message.payload || {});
+        if (message.targetId) {
+          helperState.targets[message.targetId] = helperState.targets[message.target];
+        }
+      }
+      if (message.event === 'battery') {
+        var key = message.name || message.target || 'default';
+        helperState.batteries[key] = { name: key, percent: message.percent, charging: message.charging };
+        helperState.batteries.default = helperState.batteries[key];
       }
       if (message.event === 'unavailable' && message.target) {
         helperState.targets[message.target] = { available: false };
@@ -175,7 +200,10 @@
     var settings = settingsFor(message.context);
     connectHelper(settings);
     if (settings.target) {
-      helperSend({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, pollMs: Number(settings.pollMs) || 1000 });
+      helperSend({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, pollMs: Number(settings.pollMs) || 1000 });
+    }
+    if (settings.displayMode === 'battery' || message.action === 'local.streamdock.sonar.battery') {
+      helperSend({ command: 'battery', target: settings.batteryName || settings.target, pollMs: Number(settings.pollMs) || 1000 });
     }
     setTitle(message.context, titleFor(message.context));
   }
@@ -190,7 +218,7 @@
     }
     var ok = true;
     targets.forEach(function (target) {
-      ok = helperSend({ command: 'toggle_mute', targetKind: target.targetKind, target: target.target }) && ok;
+      ok = helperSend({ command: 'toggle_mute', targetKind: target.targetKind, target: target.target, targetId: target.targetId || settings.targetId }) && ok;
     });
     if (ok) {
       showOk(context);
@@ -215,6 +243,7 @@
         command: 'volume_delta',
         targetKind: target.targetKind,
         target: target.target,
+        targetId: target.targetId || settings.targetId,
         amount: target.amount
       }) && ok;
     });
@@ -232,7 +261,12 @@
     } else if (message.event === 'willDisappear') {
       delete contexts[message.context];
     } else if (message.event === 'keyDown') {
-      toggleMute(message.context);
+      if (contexts[message.context] && contexts[message.context].action === 'local.streamdock.sonar.battery') {
+        var batterySettings = settingsFor(message.context);
+        helperSend({ command: 'battery', target: batterySettings.batteryName || batterySettings.target, pollMs: Number(batterySettings.pollMs) || 1000 });
+      } else {
+        toggleMute(message.context);
+      }
     } else if (message.event === 'dialRotate') {
       var ticks = Number(message.payload && (message.payload.ticks || message.payload.delta || message.payload.rotation)) || 0;
       adjustVolume(message.context, ticks);

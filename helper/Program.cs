@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace SonarAudioHelper;
 
@@ -83,41 +85,54 @@ internal static class Program
 
             var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
             var command = JsonSerializer.Deserialize<HelperCommand>(text, JsonOptions);
-            if (command is null || string.IsNullOrWhiteSpace(command.Target))
+            if (command is null)
             {
-                if (command?.Command == "list_targets")
+                continue;
+            }
+            if (command.Command == "list_targets")
+            {
+                await SendAsync(client.Socket, new
                 {
-                    await SendAsync(client.Socket, new
-                    {
-                        @event = "targets",
-                        devices = Audio.ListDevices(),
-                        sessions = Audio.ListSessions(),
-                        deviceDetails = Audio.ListDeviceDetails(),
-                        sessionDetails = Audio.ListSessionDetails()
-                    });
-                }
+                    @event = "targets",
+                    devices = Audio.ListDevices(),
+                    sessions = Audio.ListSessions(),
+                    deviceDetails = Audio.ListDeviceDetails(),
+                    sessionDetails = Audio.ListSessionDetails(),
+                    batteries = await BatteryProvider.ListBatteriesAsync()
+                });
+                continue;
+            }
+            if (command.Command == "battery")
+            {
+                client.Subscriptions["battery:" + (command.Target ?? "default")] =
+                    new TargetRef("battery", command.Target ?? string.Empty, Math.Clamp(command.PollMs ?? 5000, 1000, 60000), command.TargetId);
+                await PublishBatteryAsync(client.Socket, command.Target);
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(command.Target) && string.IsNullOrWhiteSpace(command.TargetId))
+            {
                 continue;
             }
 
             client.Subscriptions[(command.TargetKind ?? "device") + ":" + command.Target] =
-                new TargetRef(command.TargetKind ?? "device", command.Target, Math.Clamp(command.PollMs ?? 1000, 250, 10000));
+                new TargetRef(command.TargetKind ?? "device", command.Target, Math.Clamp(command.PollMs ?? 1000, 250, 10000), command.TargetId);
 
             if (command.Command == "subscribe")
             {
                 Log($"subscribe {command.TargetKind}:{command.Target}");
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
             }
             else if (command.Command == "toggle_mute")
             {
                 Log($"toggle_mute {command.TargetKind}:{command.Target}");
-                Audio.ToggleMute(command.TargetKind ?? "device", command.Target);
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target);
+                Audio.ToggleMute(command.TargetKind ?? "device", command.Target, command.TargetId);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
             }
             else if (command.Command == "volume_delta")
             {
                 Log($"volume_delta {command.TargetKind}:{command.Target} {command.Amount}");
-                Audio.AdjustVolume(command.TargetKind ?? "device", command.Target, command.Amount);
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target);
+                Audio.AdjustVolume(command.TargetKind ?? "device", command.Target, command.TargetId, command.Amount);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
             }
         }
     }
@@ -135,16 +150,23 @@ internal static class Program
                         DateTimeOffset.UtcNow - target.LastPublished >= TimeSpan.FromMilliseconds(target.PollMs))
                     {
                         target.LastPublished = DateTimeOffset.UtcNow;
-                        await PublishStateAsync(client.Socket, target.TargetKind, target.Target);
+                        if (target.TargetKind == "battery")
+                        {
+                            await PublishBatteryAsync(client.Socket, target.Target);
+                        }
+                        else
+                        {
+                            await PublishStateAsync(client.Socket, target.TargetKind, target.Target, target.TargetId);
+                        }
                     }
                 }
             }
         }
     }
 
-    private static async Task PublishStateAsync(WebSocket socket, string targetKind, string target)
+    private static async Task PublishStateAsync(WebSocket socket, string targetKind, string target, string? targetId)
     {
-        var state = Audio.TryGetState(targetKind, target);
+        var state = Audio.TryGetState(targetKind, target, targetId);
         if (state is null)
         {
             await SendAsync(socket, new { @event = "unavailable", target });
@@ -155,6 +177,7 @@ internal static class Program
         {
             @event = "state",
             target,
+            targetId,
             payload = new
             {
                 volume = state.VolumePercent,
@@ -162,6 +185,17 @@ internal static class Program
                 available = true
             }
         });
+    }
+
+    private static async Task PublishBatteryAsync(WebSocket socket, string? target)
+    {
+        var battery = await BatteryProvider.FindBatteryAsync(target);
+        if (battery is null)
+        {
+            await SendAsync(socket, new { @event = "battery", target, percent = (float?)null });
+            return;
+        }
+        await SendAsync(socket, new { @event = "battery", target, name = battery.Name, percent = battery.Percent, charging = battery.Charging });
     }
 
     private static async Task SendAsync(WebSocket socket, object payload)
@@ -181,18 +215,20 @@ internal static class Program
         }
     }
 
-    private sealed record HelperCommand(string? Command, string? TargetKind, string? Target, float Amount, int? PollMs);
+    private sealed record HelperCommand(string? Command, string? TargetKind, string? Target, string? TargetId, float Amount, int? PollMs);
     private sealed class TargetRef
     {
-        public TargetRef(string targetKind, string target, int pollMs)
+        public TargetRef(string targetKind, string target, int pollMs, string? targetId)
         {
             TargetKind = targetKind;
             Target = target;
             PollMs = pollMs;
+            TargetId = targetId;
         }
 
         public string TargetKind { get; }
         public string Target { get; }
+        public string? TargetId { get; }
         public int PollMs { get; }
         public DateTimeOffset LastPublished { get; set; } = DateTimeOffset.MinValue;
     }
@@ -205,9 +241,9 @@ internal static class Program
 [SupportedOSPlatform("windows10.0.17763.0")]
 internal sealed class AudioController
 {
-    public AudioState? TryGetState(string targetKind, string target)
+    public AudioState? TryGetState(string targetKind, string target, string? targetId)
     {
-        return IsSession(targetKind) ? TryGetSessionState(target) : TryGetDeviceState(target);
+        return IsSession(targetKind) ? TryGetSessionState(target, targetId) : TryGetDeviceState(target, targetId);
     }
 
     public IReadOnlyList<string> ListDevices()
@@ -276,11 +312,11 @@ internal sealed class AudioController
         return names.Values.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    public void ToggleMute(string targetKind, string target)
+    public void ToggleMute(string targetKind, string target, string? targetId)
     {
         if (IsSession(targetKind))
         {
-            using var session = FindSession(target);
+            using var session = FindSession(target, targetId);
             if (session?.SimpleVolume is null)
             {
                 return;
@@ -290,7 +326,7 @@ internal sealed class AudioController
             return;
         }
 
-        using var device = FindDevice(target);
+        using var device = FindDevice(target, targetId);
         if (device?.EndpointVolume is null)
         {
             return;
@@ -299,11 +335,11 @@ internal sealed class AudioController
         device.EndpointVolume.SetMute(!mutedDevice, Guid.Empty);
     }
 
-    public void AdjustVolume(string targetKind, string target, float amount)
+    public void AdjustVolume(string targetKind, string target, string? targetId, float amount)
     {
         if (IsSession(targetKind))
         {
-            using var session = FindSession(target);
+            using var session = FindSession(target, targetId);
             if (session?.SimpleVolume is null)
             {
                 return;
@@ -313,7 +349,7 @@ internal sealed class AudioController
             return;
         }
 
-        using var device = FindDevice(target);
+        using var device = FindDevice(target, targetId);
         if (device?.EndpointVolume is null)
         {
             return;
@@ -322,9 +358,9 @@ internal sealed class AudioController
         device.EndpointVolume.SetMasterVolumeLevelScalar(Clamp01(currentDevice + amount / 100f), Guid.Empty);
     }
 
-    private static AudioState? TryGetDeviceState(string target)
+    private static AudioState? TryGetDeviceState(string target, string? targetId)
     {
-        using var device = FindDevice(target);
+        using var device = FindDevice(target, targetId);
         if (device?.EndpointVolume is null)
         {
             return null;
@@ -334,9 +370,9 @@ internal sealed class AudioController
         return new AudioState(volume * 100f, muted);
     }
 
-    private static AudioState? TryGetSessionState(string target)
+    private static AudioState? TryGetSessionState(string target, string? targetId)
     {
-        using var session = FindSession(target);
+        using var session = FindSession(target, targetId);
         if (session?.SimpleVolume is null)
         {
             return null;
@@ -356,7 +392,7 @@ internal sealed class AudioController
         return Math.Max(0f, Math.Min(1f, value));
     }
 
-    private static DeviceHandle? FindDevice(string target)
+    private static DeviceHandle? FindDevice(string target, string? targetId = null)
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
         enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceState.Active, out var collection);
@@ -364,8 +400,14 @@ internal sealed class AudioController
         for (uint i = 0; i < count; i++)
         {
             collection.Item(i, out var device);
+            device.GetId(out var idPtr);
+            var id = Marshal.PtrToStringUni(idPtr) ?? string.Empty;
+            if (idPtr != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(idPtr);
+            }
             var name = ReadFriendlyName(device);
-            if (!name.Contains(target, StringComparison.OrdinalIgnoreCase))
+            if (!MatchesTarget(name, id, target, targetId))
             {
                 Marshal.ReleaseComObject(device);
                 continue;
@@ -379,7 +421,7 @@ internal sealed class AudioController
         return null;
     }
 
-    private static SessionHandle? FindSession(string target)
+    private static SessionHandle? FindSession(string target, string? targetId = null)
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
         enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceState.Active, out var collection);
@@ -396,8 +438,14 @@ internal sealed class AudioController
             {
                 sessions.GetSession(sessionIndex, out var control);
                 var control2 = (IAudioSessionControl2)control;
+                control2.GetSessionInstanceIdentifier(out var sessionIdPtr);
+                var sessionId = Marshal.PtrToStringUni(sessionIdPtr) ?? string.Empty;
+                if (sessionIdPtr != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(sessionIdPtr);
+                }
                 var name = ReadSessionName(control2);
-                if (!name.Contains(target, StringComparison.OrdinalIgnoreCase))
+                if (!MatchesTarget(name, sessionId, target, targetId))
                 {
                     Marshal.ReleaseComObject(control);
                     continue;
@@ -412,6 +460,15 @@ internal sealed class AudioController
         }
 
         return null;
+    }
+
+    private static bool MatchesTarget(string name, string id, string target, string? targetId)
+    {
+        if (!string.IsNullOrWhiteSpace(targetId) && id.Equals(targetId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return !string.IsNullOrWhiteSpace(target) && name.Contains(target, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ReadFriendlyName(IMMDevice device)
@@ -455,6 +512,216 @@ internal sealed class AudioController
 
 internal sealed record AudioState(float VolumePercent, bool Muted);
 internal sealed record TargetInfo(string Id, string Name);
+internal sealed record BatteryState(string Name, float Percent, bool? Charging);
+
+internal static class BatteryProvider
+{
+    private static readonly HttpClient Http = new(new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(2)
+    };
+
+    public static async Task<IReadOnlyList<BatteryState>> ListBatteriesAsync()
+    {
+        var fromJson = ReadBatteryJson();
+        if (fromJson.Count > 0)
+        {
+            return fromJson;
+        }
+
+        foreach (var endpoint in CandidateEndpoints())
+        {
+            foreach (var path in new[] { "/devices", "/api/v1/devices", "/engine/v1/devices", "/gg/devices" })
+            {
+                try
+                {
+                    var json = await Http.GetStringAsync(endpoint.TrimEnd('/') + path);
+                    var parsed = ExtractBatteries(json);
+                    if (parsed.Count > 0)
+                    {
+                        return parsed;
+                    }
+                }
+                catch
+                {
+                    // Try the next known local endpoint shape.
+                }
+            }
+        }
+        return Array.Empty<BatteryState>();
+    }
+
+    public static async Task<BatteryState?> FindBatteryAsync(string? target)
+    {
+        var batteries = await ListBatteriesAsync();
+        if (batteries.Count == 0)
+        {
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return batteries[0];
+        }
+        return batteries.FirstOrDefault(item => item.Name.Contains(target, StringComparison.OrdinalIgnoreCase)) ?? batteries[0];
+    }
+
+    private static IReadOnlyList<BatteryState> ReadBatteryJson()
+    {
+        var path = Environment.GetEnvironmentVariable("STREAMDOCK_SONAR_BATTERY_JSON");
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return Array.Empty<BatteryState>();
+        }
+        try
+        {
+            return ExtractBatteries(File.ReadAllText(path));
+        }
+        catch
+        {
+            return Array.Empty<BatteryState>();
+        }
+    }
+
+    private static IEnumerable<string> CandidateEndpoints()
+    {
+        var env = Environment.GetEnvironmentVariable("STEELSERIES_GG_ENDPOINT");
+        if (!string.IsNullOrWhiteSpace(env))
+        {
+            yield return env;
+        }
+
+        foreach (var file in CandidateCorePropsFiles())
+        {
+            if (!File.Exists(file))
+            {
+                continue;
+            }
+            JsonDocument? doc = null;
+            try
+            {
+                doc = JsonDocument.Parse(File.ReadAllText(file));
+                foreach (var property in doc.RootElement.EnumerateObject())
+                {
+                    if (property.Name.Contains("address", StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        var value = property.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            yield return value.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? value : "http://" + value;
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                doc?.Dispose();
+            }
+        }
+    }
+
+    private static IEnumerable<string> CandidateCorePropsFiles()
+    {
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        yield return Path.Combine(programData, "SteelSeries", "SteelSeries Engine 3", "coreProps.json");
+        yield return Path.Combine(programData, "SteelSeries", "GG", "coreProps.json");
+        yield return Path.Combine(local, "SteelSeries", "GG", "coreProps.json");
+    }
+
+    private static IReadOnlyList<BatteryState> ExtractBatteries(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var list = new List<BatteryState>();
+        Walk(doc.RootElement, list, "Headset");
+        return list
+            .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+    }
+
+    private static void Walk(JsonElement element, List<BatteryState> output, string inheritedName)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var name = ReadName(element) ?? inheritedName;
+            float? percent = null;
+            bool? charging = null;
+            foreach (var property in element.EnumerateObject())
+            {
+                if (IsBatteryName(property.Name) && TryReadPercent(property.Value, out var value))
+                {
+                    percent = value;
+                }
+                if (property.Name.Contains("charging", StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                {
+                    charging = property.Value.GetBoolean();
+                }
+            }
+            if (percent is not null)
+            {
+                output.Add(new BatteryState(name, Math.Clamp(percent.Value, 0, 100), charging));
+            }
+            foreach (var property in element.EnumerateObject())
+            {
+                Walk(property.Value, output, name);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                Walk(item, output, inheritedName);
+            }
+        }
+    }
+
+    private static string? ReadName(JsonElement element)
+    {
+        foreach (var key in new[] { "name", "deviceName", "productName", "model", "friendlyName" })
+        {
+            if (element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString();
+            }
+        }
+        return null;
+    }
+
+    private static bool IsBatteryName(string name)
+    {
+        return Regex.IsMatch(name, "battery|charge", RegexOptions.IgnoreCase);
+    }
+
+    private static bool TryReadPercent(JsonElement element, out float value)
+    {
+        value = 0;
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetSingle(out value))
+        {
+            if (value <= 1)
+            {
+                value *= 100;
+            }
+            return true;
+        }
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            var text = element.GetString() ?? string.Empty;
+            var match = Regex.Match(text, @"(\d+(?:\.\d+)?)");
+            if (match.Success && float.TryParse(match.Groups[1].Value, out value))
+            {
+                if (value <= 1)
+                {
+                    value *= 100;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+}
 
 internal sealed class DeviceHandle : IDisposable
 {

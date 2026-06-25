@@ -32,6 +32,15 @@
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
+      "UUID": "local.streamdock.sonar.battery",
+      "Name": "Headset Battery",
+      "Tooltip": "Show SteelSeries headset battery percentage when GG exposes it locally.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Battery", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
       "UUID": "local.streamdock.sonar.diagnostics",
       "Name": "Diagnostics",
       "Tooltip": "Show Sonar helper diagnostics.",

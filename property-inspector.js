@@ -7,9 +7,12 @@
     endpoint: 'ws://127.0.0.1:41922',
     targetKind: 'device',
     target: '',
+    targetId: '',
     volumeStep: 2,
     pollMs: 1000,
-    presetJson: ''
+    presetJson: '',
+    displayMode: 'volume',
+    batteryName: ''
   };
   var helperSocket = null;
 
@@ -24,9 +27,12 @@
     settings.endpoint = byId('endpoint').value.trim();
     settings.targetKind = byId('targetKind').value;
     settings.target = byId('target').value.trim();
+    settings.targetId = byId('targetId').value.trim();
     settings.volumeStep = Number(byId('volumeStep').value) || 2;
     settings.pollMs = Number(byId('pollMs').value) || 1000;
     settings.presetJson = byId('presetJson').value.trim();
+    settings.displayMode = byId('displayMode').value;
+    settings.batteryName = byId('batteryName').value.trim();
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
   }
 
@@ -63,12 +69,24 @@
   function renderTargets(message) {
     var list = byId('targets');
     list.innerHTML = '';
-    var values = settings.targetKind === 'session' ? message.sessions || [] : message.devices || [];
+    var values = settings.targetKind === 'session' ? message.sessionDetails || message.sessions || [] : message.deviceDetails || message.devices || [];
     values.forEach(function (value) {
       var option = document.createElement('option');
-      option.value = value;
+      option.value = typeof value === 'string' ? value : value.name;
+      if (typeof value !== 'string' && value.id) {
+        option.label = value.name + ' [' + value.id + ']';
+      }
       list.appendChild(option);
     });
+    if (message.batteries && message.batteries.length) {
+      var batteryList = byId('batteries');
+      batteryList.innerHTML = '';
+      message.batteries.forEach(function (item) {
+        var option = document.createElement('option');
+        option.value = item.name || item.target || 'Headset';
+        batteryList.appendChild(option);
+      });
+    }
   }
 
   function applySettings(next) {
@@ -115,7 +133,7 @@
   };
 
   window.addEventListener('DOMContentLoaded', function () {
-    ['endpoint', 'targetKind', 'target', 'volumeStep'].forEach(function (id) {
+    ['endpoint', 'targetKind', 'target', 'targetId', 'volumeStep', 'displayMode', 'batteryName'].forEach(function (id) {
       byId(id).addEventListener('input', update);
       byId(id).addEventListener('change', update);
     });
