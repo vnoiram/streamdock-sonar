@@ -128,6 +128,8 @@ dotnet run --project helper\SonarAudioHelper.csproj -- --log-file "$env:TEMP\str
 
 It listens on `http://127.0.0.1:41922/` for WebSocket upgrades. `targetKind=device` matches active render device friendly names by substring. `targetKind=session` matches audio session display names or process names by substring.
 
+The Property Inspector warns when the helper endpoint is not localhost because device/session names and volume commands will be sent to that endpoint.
+
 It also supports `{ "command": "list_targets" }`, returning current device/session names and IDs for Property Inspector autocomplete.
 
 Battery display uses the helper command `{ "command": "battery", "target": "headset name" }`. The helper first checks `STREAMDOCK_SONAR_BATTERY_JSON`, then tries SteelSeries GG/Engine `coreProps.json` endpoints and scans returned JSON for battery-like fields. SteelSeries endpoints are accepted only when they resolve to localhost/loopback, including values supplied through `STEELSERIES_GG_ENDPOINT`. If GG does not expose the headset battery through those local files or endpoints, the action shows `Battery unknown`.

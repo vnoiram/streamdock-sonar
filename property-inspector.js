@@ -58,10 +58,35 @@
     settings.batteryWarnPercent = Number(byId('batteryWarnPercent').value) || 20;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
     renderPresetNames();
+    renderEndpointStatus();
   }
 
   function setStatus(text) {
     byId('status').textContent = text;
+  }
+
+  function renderEndpointStatus() {
+    var status = byId('endpointStatus');
+    if (!status) return;
+    var endpoint = byId('endpoint').value.trim();
+    if (!endpoint) {
+      status.textContent = 'missing helper endpoint';
+      return;
+    }
+    if (!/^wss?:\/\//i.test(endpoint)) {
+      status.textContent = 'invalid WebSocket endpoint';
+      return;
+    }
+    status.textContent = isLoopbackEndpoint(endpoint) ? 'localhost helper' : 'remote helper: expose only on trusted networks';
+  }
+
+  function isLoopbackEndpoint(endpoint) {
+    try {
+      var url = new URL(endpoint);
+      return ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(url.hostname) !== -1;
+    } catch (error) {
+      return false;
+    }
   }
 
   function refreshTargets() {
@@ -127,6 +152,7 @@
       }
     });
     renderPresetNames();
+    renderEndpointStatus();
   }
 
   function parsePresets() {
@@ -267,5 +293,6 @@
     byId('pasteSettings').addEventListener('click', pasteSettings);
     byId('exportSettings').addEventListener('click', exportSettings);
     byId('importSettings').addEventListener('change', importSettings);
+    renderEndpointStatus();
   });
 }());
