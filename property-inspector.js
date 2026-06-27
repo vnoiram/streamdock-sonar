@@ -259,6 +259,64 @@
     setStatus('preset captured');
   }
 
+  function dryRunPreset() {
+    update();
+    var targets = [];
+    try {
+      if (settings.presetsJson && settings.presetName) {
+        var presets = parsePresets();
+        targets = presets[settings.presetName] || [];
+      } else if (settings.presetJson) {
+        targets = JSON.parse(settings.presetJson);
+      } else if (settings.target || settings.targetId) {
+        targets = [{ target: settings.target, targetId: settings.targetId, targetKind: settings.targetKind }];
+      }
+      if (!Array.isArray(targets)) targets = [];
+      setStatus(targets.length ? 'dry-run ' + targets.length + ' target(s)' : 'dry-run no targets');
+    } catch (error) {
+      setStatus('dry-run invalid preset');
+    }
+  }
+
+  function diagnoseSettings() {
+    update();
+    var issues = [];
+    if (!settings.endpoint) issues.push('missing endpoint');
+    if (!/^wss?:\/\//i.test(settings.endpoint)) issues.push('invalid endpoint');
+    if (!isLoopbackEndpoint(settings.endpoint)) issues.push('remote helper');
+    if (!settings.target && settings.displayMode !== 'battery' && !settings.presetsJson && !settings.presetJson) issues.push('missing target');
+    if (Number(settings.maxVolume) < Number(settings.minVolume)) issues.push('volume range reversed');
+    if (settings.displayMode === 'battery' && !settings.batteryName && !settings.target) issues.push('battery target unset');
+    setStatus(issues.join(', ') || 'diagnostics ok');
+  }
+
+  function resetSettings() {
+    applySettings({
+      endpoint: 'ws://127.0.0.1:41922',
+      targetKind: 'device',
+      target: '',
+      targetId: '',
+      volumeStep: 2,
+      pollMs: 1000,
+      presetJson: '',
+      presetsJson: '',
+      presetName: '',
+      presetDialMode: 'volume',
+      presetApplyMode: 'both',
+      presetApplyDelayMs: 700,
+      displayMode: 'volume',
+      batteryName: '',
+      titleLabel: '',
+      invertKnob: false,
+      minVolume: 0,
+      maxVolume: 100,
+      generatedImages: true,
+      batteryWarnPercent: 20
+    });
+    update();
+    setStatus('settings reset');
+  }
+
   window.connectElgatoStreamDeckSocket = function (port, uuid, registerEvent, info, actionInfo) {
     var parsedActionInfo = JSON.parse(actionInfo || '{}');
     context = parsedActionInfo.context || uuid;
@@ -289,6 +347,9 @@
     });
     byId('refreshTargets').addEventListener('click', refreshTargets);
     byId('capturePreset').addEventListener('click', capturePreset);
+    byId('dryRunPreset').addEventListener('click', dryRunPreset);
+    byId('diagnoseSettings').addEventListener('click', diagnoseSettings);
+    byId('resetSettings').addEventListener('click', resetSettings);
     byId('copySettings').addEventListener('click', copySettings);
     byId('pasteSettings').addEventListener('click', pasteSettings);
     byId('exportSettings').addEventListener('click', exportSettings);

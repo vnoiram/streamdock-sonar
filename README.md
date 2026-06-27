@@ -26,6 +26,8 @@ Initial actions:
 - Apply named mixer presets with absolute volume and mute values
 - Select named presets with a knob and apply them on press, after rotation stops, or both
 - Capture current helper-reported target volume/mute states into a named preset
+- Dry-run named or JSON presets from the Property Inspector without changing volume
+- Property Inspector `Diagnose` and `Reset` for endpoint, target, battery, and volume-range checks
 - Copy/paste action settings between keys from the Property Inspector
 - Mic mute action
 - Per-target poll interval
