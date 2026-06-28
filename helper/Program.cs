@@ -893,7 +893,7 @@ internal interface IPropertyStore
 }
 
 [ComImport]
-[Guid("5CDF2C82-841E-4546-9722-0CF74078229A2")]
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IAudioEndpointVolume
 {

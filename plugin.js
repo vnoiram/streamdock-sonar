@@ -113,7 +113,7 @@
           target: item.target || '',
           targetId: item.targetId || '',
           amount: Number(item.amount) || 0,
-        setVolume: item.setVolume === undefined ? null : clampVolume(Number(item.setVolume), settings),
+          setVolume: item.setVolume === undefined ? null : clampVolume(Number(item.setVolume), settings),
           mute: item.mute
         };
       }).filter(function (item) { return item.target || item.targetId; });
