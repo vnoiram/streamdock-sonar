@@ -29,7 +29,7 @@
   var helperSocket = null;
   var reconnectTimer = null;
   var contexts = {};
-  var helperState = { connected: false, targets: {}, batteries: {}, lastError: '' };
+  var helperState = { connected: false, targets: {}, batteries: {}, lastError: '', lastUpdatedAt: 0 };
   var presetDialState = {};
 
   function parseJson(value, fallback) {
@@ -149,7 +149,7 @@
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
       var battery = helperState.batteries[settings.batteryName || settings.target] || helperState.batteries.default || {};
       if (!helperState.connected) {
-        return 'Battery\noffline';
+        return cachedTitle('Battery\noffline');
       }
       if (typeof battery.percent === 'number') {
         return (settings.titleLabel || battery.name || settings.batteryName || 'Headset') + '\n' + Math.round(battery.percent) + '%' + (battery.charging ? '\ncharging' : '');
@@ -163,7 +163,7 @@
       return 'Mic\n' + (targetState(settings).muted ? 'muted' : 'ready');
     }
     if (!helperState.connected) {
-      return 'Sonar\noffline';
+      return cachedTitle('Sonar\noffline');
     }
     var current = targetState(settings);
     if (current.available === false) {
@@ -176,6 +176,13 @@
       return (settings.titleLabel || settings.target) + '\n' + Math.round(current.volume) + '%';
     }
     return settings.titleLabel || settings.target;
+  }
+
+  function cachedTitle(title) {
+    if (!helperState.lastUpdatedAt) {
+      return title;
+    }
+    return title + '\ncache ' + Math.max(0, Math.round((Date.now() - helperState.lastUpdatedAt) / 1000)) + 's';
   }
 
   function refreshTitles() {
@@ -267,12 +274,14 @@
     helperSocket.onmessage = function (event) {
       var message = parseJson(event.data, {});
       if (message.event === 'state' && message.target) {
+        helperState.lastUpdatedAt = Date.now();
         helperState.targets[message.target] = Object.assign({}, helperState.targets[message.target] || {}, message.payload || {});
         if (message.targetId) {
           helperState.targets[message.targetId] = helperState.targets[message.target];
         }
       }
       if (message.event === 'battery') {
+        helperState.lastUpdatedAt = Date.now();
         var key = message.name || message.target || 'default';
         helperState.batteries[key] = { name: key, percent: message.percent, charging: message.charging };
         helperState.batteries.default = helperState.batteries[key];

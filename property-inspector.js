@@ -63,6 +63,7 @@
 
   function setStatus(text) {
     byId('status').textContent = text;
+    appendDiagnostics(text);
   }
 
   function renderEndpointStatus() {
@@ -189,7 +190,7 @@
 
   function exportSettings() {
     update();
-    var blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(backupPayload(), null, 2)], { type: 'application/json' });
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'streamdock-sonar-settings.json';
@@ -201,14 +202,14 @@
     var file = event.target.files && event.target.files[0];
     if (!file) return;
     file.text().then(function (text) {
-      applySettings(JSON.parse(text));
+      applySettings(settingsFromImport(JSON.parse(text)));
       update();
     });
   }
 
   function copySettings() {
     update();
-    navigator.clipboard.writeText(JSON.stringify(settings, null, 2)).then(function () {
+    navigator.clipboard.writeText(JSON.stringify(backupPayload(), null, 2)).then(function () {
       setStatus('settings copied');
     }).catch(function () {
       setStatus('copy failed');
@@ -217,11 +218,58 @@
 
   function pasteSettings() {
     navigator.clipboard.readText().then(function (text) {
-      applySettings(JSON.parse(text));
+      applySettings(settingsFromImport(JSON.parse(text)));
       update();
       setStatus('settings pasted');
     }).catch(function () {
       setStatus('paste failed');
+    });
+  }
+
+  function backupPayload() {
+    return {
+      type: 'streamdock-plugin-backup',
+      plugin: 'streamdock-sonar',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      settings: settings
+    };
+  }
+
+  function settingsFromImport(imported) {
+    if (imported && imported.type === 'streamdock-plugin-backup') {
+      return imported.settings || {};
+    }
+    return imported || {};
+  }
+
+  function diagnosticsKey() {
+    return 'streamdock-sonar:diagnostics';
+  }
+
+  function diagnosticsLog() {
+    try {
+      return JSON.parse(localStorage.getItem(diagnosticsKey()) || '[]');
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function appendDiagnostics(text) {
+    try {
+      var items = diagnosticsLog();
+      items.unshift({ time: new Date().toISOString(), message: String(text || '') });
+      localStorage.setItem(diagnosticsKey(), JSON.stringify(items.slice(0, 50)));
+    } catch (error) {
+      // localStorage can be disabled in some plugin runtimes.
+    }
+  }
+
+  function copyDiagnostics() {
+    navigator.clipboard.writeText(JSON.stringify(diagnosticsLog(), null, 2)).then(function () {
+      setStatus('diagnostics copied');
+    }).catch(function () {
+      setStatus('diagnostics copy failed');
     });
   }
 
@@ -353,6 +401,7 @@
     byId('copySettings').addEventListener('click', copySettings);
     byId('pasteSettings').addEventListener('click', pasteSettings);
     byId('exportSettings').addEventListener('click', exportSettings);
+    byId('copyDiagnostics').addEventListener('click', copyDiagnostics);
     byId('importSettings').addEventListener('change', importSettings);
     renderEndpointStatus();
   });

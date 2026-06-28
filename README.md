@@ -28,6 +28,7 @@ Initial actions:
 - Capture current helper-reported target volume/mute states into a named preset
 - Dry-run named or JSON presets from the Property Inspector without changing volume
 - Property Inspector `Diagnose` and `Reset` for endpoint, target, battery, and volume-range checks
+- Common backup export format, Property Inspector diagnostic log copy, and cached state age on offline volume/battery titles
 - Copy/paste action settings between keys from the Property Inspector
 - Mic mute action
 - Per-target poll interval
