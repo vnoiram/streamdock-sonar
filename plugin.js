@@ -28,6 +28,7 @@
   var pluginUuid = null;
   var helperSocket = null;
   var reconnectTimer = null;
+  var reconnectDelay = 2000;
   var contexts = {};
   var helperState = { connected: false, targets: {}, batteries: {}, lastError: '', lastUpdatedAt: 0 };
   var presetDialState = {};
@@ -202,7 +203,7 @@
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
       var battery = helperState.batteries[settings.batteryName || settings.target] || helperState.batteries.default || {};
       var percent = Number(battery.percent);
-      var warn = Number(settings.batteryWarnPercent) || 20;
+      var warn = clampBatteryWarn(settings.batteryWarnPercent);
       return svgImage(Number.isFinite(percent) && percent <= warn ? '#7f1d1d' : '#1f4f46', '#ffffff', Number.isFinite(percent) ? Math.round(percent) + '%' : 'BAT', battery.charging ? 'CHG' : '', Number.isFinite(percent) ? percent : 0);
     }
     var state = targetState(settings);
@@ -259,14 +260,15 @@
     helperSocket.onopen = function () {
       helperState.connected = true;
       helperState.lastError = '';
+      reconnectDelay = 2000;
       refreshTitles();
       Object.keys(contexts).forEach(function (context) {
         var contextSettings = settingsFor(context);
         if (contextSettings.target) {
-          helperSend({ command: 'subscribe', targetKind: contextSettings.targetKind, target: contextSettings.target, targetId: contextSettings.targetId, pollMs: Number(contextSettings.pollMs) || 1000 });
+          helperSend({ command: 'subscribe', targetKind: contextSettings.targetKind, target: contextSettings.target, targetId: contextSettings.targetId, pollMs: clampPollMs(contextSettings.pollMs) });
         }
         if (contextSettings.displayMode === 'battery' || (contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery') {
-          helperSend({ command: 'battery', target: contextSettings.batteryName || contextSettings.target, pollMs: Number(contextSettings.pollMs) || 1000 });
+          helperSend({ command: 'battery', target: contextSettings.batteryName || contextSettings.target, pollMs: clampPollMs(contextSettings.pollMs) });
         }
       });
     };
@@ -297,9 +299,12 @@
       helperState.lastError = 'helper closed';
       logMessage('helper closed');
       refreshTitles();
+      clearTimeout(reconnectTimer);
+      var delay = reconnectDelay;
+      reconnectDelay = Math.min(30000, reconnectDelay * 2);
       reconnectTimer = setTimeout(function () {
         connectHelper(settings);
-      }, 2000);
+      }, delay);
     };
 
     helperSocket.onerror = function () {
@@ -318,10 +323,10 @@
     var settings = settingsFor(message.context);
     connectHelper(settings);
     if (settings.target) {
-      helperSend({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, pollMs: Number(settings.pollMs) || 1000 });
+      helperSend({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, pollMs: clampPollMs(settings.pollMs) });
     }
     if (settings.displayMode === 'battery' || message.action === 'local.streamdock.sonar.battery') {
-      helperSend({ command: 'battery', target: settings.batteryName || settings.target, pollMs: Number(settings.pollMs) || 1000 });
+      helperSend({ command: 'battery', target: settings.batteryName || settings.target, pollMs: clampPollMs(settings.pollMs) });
     }
     setTitle(message.context, titleFor(message.context));
   }
@@ -423,6 +428,17 @@
       min = tmp;
     }
     return Math.max(min, Math.min(max, Number(value) || 0));
+  }
+
+  function clampPollMs(value) {
+    var ms = Number(value) || 1000;
+    return Math.max(250, Math.min(60000, ms));
+  }
+
+  function clampBatteryWarn(value) {
+    var pct = Number(value);
+    if (!Number.isFinite(pct)) return 20;
+    return Math.max(1, Math.min(100, Math.round(pct)));
   }
 
   function selectPresetByDial(context, ticks) {
