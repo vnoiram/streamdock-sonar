@@ -31,7 +31,29 @@
   var reconnectDelay = 2000;
   var contexts = {};
   var helperState = { connected: false, targets: {}, batteries: {}, lastError: '', lastUpdatedAt: 0 };
+  var sonarDirect = { url: '', urlPromise: null, connected: false, lastError: '', lastUpdatedAt: 0, retryAfter: 0, polls: {} };
   var presetDialState = {};
+  var SONAR_SUBAPPS_URL = 'https://127.0.0.1:6327/subApps';
+  var SONAR_TARGETS = [
+    { target: 'classic:master', label: 'Classic Master' },
+    { target: 'classic:game', label: 'Classic Game' },
+    { target: 'classic:chat', label: 'Classic Chat' },
+    { target: 'classic:media', label: 'Classic Media' },
+    { target: 'classic:aux', label: 'Classic Aux' },
+    { target: 'classic:mic', label: 'Classic Mic' },
+    { target: 'streamer:monitoring:master', label: 'Stream Personal Master' },
+    { target: 'streamer:monitoring:game', label: 'Stream Personal Game' },
+    { target: 'streamer:monitoring:chat', label: 'Stream Personal Chat' },
+    { target: 'streamer:monitoring:media', label: 'Stream Personal Media' },
+    { target: 'streamer:monitoring:aux', label: 'Stream Personal Aux' },
+    { target: 'streamer:monitoring:mic', label: 'Stream Personal Mic' },
+    { target: 'streamer:streaming:master', label: 'Stream Broadcast Master' },
+    { target: 'streamer:streaming:game', label: 'Stream Broadcast Game' },
+    { target: 'streamer:streaming:chat', label: 'Stream Broadcast Chat' },
+    { target: 'streamer:streaming:media', label: 'Stream Broadcast Media' },
+    { target: 'streamer:streaming:aux', label: 'Stream Broadcast Aux' },
+    { target: 'streamer:streaming:mic', label: 'Stream Broadcast Mic' }
+  ];
 
   function parseJson(value, fallback) {
     try {
@@ -139,13 +161,18 @@
   }
 
   function targetState(settings) {
-    return helperState.targets[settings.targetId || settings.target] || helperState.targets[settings.target] || {};
+    var state = helperState.targets[settings.targetId || settings.target] || helperState.targets[settings.target];
+    if (!state && String(settings.targetKind || '').toLowerCase() === 'sonar') {
+      var fallbackTarget = sonarFallbackTargetName(settings.target);
+      state = fallbackTarget && helperState.targets[fallbackTarget];
+    }
+    return state || {};
   }
 
   function titleFor(context) {
     var settings = settingsFor(context);
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.diagnostics') {
-      return 'Sonar\n' + (helperState.connected ? 'ok' : 'offline') + '\n' + (helperState.lastError || settings.endpoint);
+      return 'Sonar\n' + (sonarDirect.connected ? 'direct' : helperState.connected ? 'helper' : 'offline') + '\n' + (sonarDirect.lastError || helperState.lastError || settings.endpoint);
     }
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
       var battery = helperState.batteries[settings.batteryName || settings.target] || helperState.batteries.default || {};
@@ -163,7 +190,7 @@
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.micmute') {
       return 'Mic\n' + (targetState(settings).muted ? 'muted' : 'ready');
     }
-    if (!helperState.connected) {
+    if (!isTargetOnline(settings)) {
       return cachedTitle('Sonar\noffline');
     }
     var current = targetState(settings);
@@ -180,10 +207,11 @@
   }
 
   function cachedTitle(title) {
-    if (!helperState.lastUpdatedAt) {
+    var lastUpdatedAt = Math.max(helperState.lastUpdatedAt || 0, sonarDirect.lastUpdatedAt || 0);
+    if (!lastUpdatedAt) {
       return title;
     }
-    return title + '\ncache ' + Math.max(0, Math.round((Date.now() - helperState.lastUpdatedAt) / 1000)) + 's';
+    return title + '\ncache ' + Math.max(0, Math.round((Date.now() - lastUpdatedAt) / 1000)) + 's';
   }
 
   function refreshTitles() {
@@ -197,7 +225,7 @@
 
   function imageFor(context) {
     var settings = settingsFor(context);
-    if (!helperState.connected) {
+    if (!isTargetOnline(settings)) {
       return svgImage('#343a40', '#adb5bd', 'SON', 'OFF', 0);
     }
     if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
@@ -249,6 +277,252 @@
     return true;
   }
 
+  function sendTargetCommand(payload) {
+    if (isSonarTarget(payload)) {
+      if (Date.now() < sonarDirect.retryAfter) {
+        return Promise.resolve(helperSend(sonarFallbackPayload(payload)));
+      }
+      return sendSonarDirect(payload).catch(function (error) {
+        sonarDirect.connected = false;
+        sonarDirect.lastError = 'direct failed: helper fallback';
+        sonarDirect.retryAfter = Date.now() + 30000;
+        logMessage('sonar direct failed: ' + (error && error.message || error));
+        return helperSend(sonarFallbackPayload(payload));
+      });
+    }
+    return Promise.resolve(helperSend(payload));
+  }
+
+  function isSonarTarget(payload) {
+    return payload && String(payload.targetKind || '').toLowerCase() === 'sonar';
+  }
+
+  function sonarFallbackPayload(payload) {
+    var fallbackTarget = sonarFallbackTargetName(payload.target);
+    if (!fallbackTarget) {
+      return payload;
+    }
+    return Object.assign({}, payload, {
+      targetKind: 'device',
+      target: fallbackTarget,
+      targetId: ''
+    });
+  }
+
+  function sonarFallbackTargetName(target) {
+    try {
+      var parsed = parseSonarTarget(target);
+      if (parsed.mode !== 'classic') {
+        return '';
+      }
+      return {
+        game: 'Sonar - Gaming',
+        chat: 'Sonar - Chat',
+        media: 'Sonar - Media',
+        aux: 'Sonar - Aux'
+      }[parsed.channel] || '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function isTargetOnline(settings) {
+    return String(settings.targetKind || '').toLowerCase() === 'sonar' ? (sonarDirect.connected || helperState.connected) : helperState.connected;
+  }
+
+  function sendSonarDirect(payload) {
+    return sonarExecute(payload).then(function (state) {
+      if (state) {
+        publishSonarState(payload.target, state);
+      }
+      return true;
+    });
+  }
+
+  function sonarExecute(payload) {
+    var command = payload.command;
+    if (command === 'subscribe') {
+      return getSonarTargetState(payload.target);
+    }
+    if (command === 'set_volume') {
+      return setSonarVolume(payload.target, payload.value).then(function () {
+        return getSonarTargetState(payload.target);
+      });
+    }
+    if (command === 'set_mute') {
+      return setSonarMute(payload.target, payload.value === 1 || payload.value === true || payload.value === 'true').then(function () {
+        return getSonarTargetState(payload.target);
+      });
+    }
+    if (command === 'toggle_mute') {
+      return getSonarTargetState(payload.target).then(function (state) {
+        return setSonarMute(payload.target, !state.muted).then(function () {
+          return getSonarTargetState(payload.target);
+        });
+      });
+    }
+    if (command === 'volume_delta') {
+      return getSonarTargetState(payload.target).then(function (state) {
+        return setSonarVolume(payload.target, Math.max(0, Math.min(100, state.volume + Number(payload.amount || 0)))).then(function () {
+          return getSonarTargetState(payload.target);
+        });
+      });
+    }
+    throw new Error('unsupported direct command: ' + command);
+  }
+
+  function publishSonarState(target, state) {
+    sonarDirect.connected = true;
+    sonarDirect.lastError = '';
+    sonarDirect.lastUpdatedAt = Date.now();
+    sonarDirect.retryAfter = 0;
+    helperState.targets[target] = {
+      volume: state.volume,
+      muted: state.muted,
+      available: true,
+      source: 'sonar'
+    };
+    refreshTitles();
+  }
+
+  function getSonarTargetState(target) {
+    var parsed = parseSonarTarget(target);
+    var route = parsed.mode === 'classic' ? '/VolumeSettings/classic' : '/VolumeSettings/streamer';
+    return sonarFetch(route, 'GET').then(function (settings) {
+      var node;
+      if (parsed.channel === 'master') {
+        node = parsed.mode === 'classic' ? settings.masters && settings.masters.classic : settings.masters && settings.masters.stream && settings.masters.stream[parsed.mix];
+      } else {
+        var device = settings.devices && settings.devices[parsed.apiChannel];
+        node = parsed.mode === 'classic' ? device && device.classic : device && device.stream && device.stream[parsed.mix];
+      }
+      if (!node || typeof node.volume !== 'number') {
+        throw new Error('missing Sonar state for ' + target);
+      }
+      return { volume: node.volume * 100, muted: !!node.muted };
+    });
+  }
+
+  function setSonarVolume(target, value) {
+    var parsed = parseSonarTarget(target);
+    var scalar = Math.max(0, Math.min(1, Number(value) / 100));
+    var vol = scalar.toFixed(2);
+    if (parsed.mode === 'classic') {
+      return sonarFetch('/VolumeSettings/classic/' + parsed.httpChannel + '/Volume/' + vol, 'PUT');
+    }
+    return sonarFetch('/VolumeSettings/streamer/' + parsed.mix + '/' + parsed.httpChannel + '/volume/' + vol, 'PUT');
+  }
+
+  function setSonarMute(target, muted) {
+    var parsed = parseSonarTarget(target);
+    var value = muted ? 'true' : 'false';
+    if (parsed.mode === 'classic') {
+      return sonarFetch('/VolumeSettings/classic/' + parsed.httpChannel + '/Mute/' + value, 'PUT');
+    }
+    return sonarFetch('/VolumeSettings/streamer/' + parsed.mix + '/' + parsed.httpChannel + '/isMuted/' + value, 'PUT');
+  }
+
+  function parseSonarTarget(target) {
+    var parts = String(target || '').split(':');
+    var mode = parts[0];
+    var mix = '';
+    var channel = '';
+    if (mode === 'classic' && parts.length === 2) {
+      channel = parts[1];
+    } else if (mode === 'streamer' && parts.length === 3) {
+      mix = parts[1];
+      channel = parts[2];
+    } else {
+      throw new Error('invalid Sonar target: ' + target);
+    }
+    if (mode !== 'classic' && mode !== 'streamer') {
+      throw new Error('invalid Sonar mode: ' + mode);
+    }
+    if (mode === 'streamer' && mix !== 'monitoring' && mix !== 'streaming') {
+      throw new Error('invalid Sonar mix: ' + mix);
+    }
+    var apiChannel = sonarApiChannel(channel);
+    return {
+      mode: mode,
+      mix: mix,
+      channel: channel,
+      apiChannel: apiChannel,
+      httpChannel: channel === 'master' ? (mode === 'classic' ? 'Master' : 'master') : apiChannel
+    };
+  }
+
+  function sonarApiChannel(channel) {
+    var map = {
+      master: 'master',
+      game: 'game',
+      chat: 'chatRender',
+      media: 'media',
+      aux: 'aux',
+      mic: 'chatCapture'
+    };
+    if (!map[channel]) {
+      throw new Error('invalid Sonar channel: ' + channel);
+    }
+    return map[channel];
+  }
+
+  function sonarFetch(route, method) {
+    return getSonarUrl().then(function (baseUrl) {
+      return fetch(baseUrl.replace(/\/+$/, '') + route, { method: method || 'GET' });
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error('Sonar HTTP ' + response.status);
+      }
+      if ((method || 'GET').toUpperCase() === 'PUT') {
+        return response.text().then(function (text) {
+          return text ? parseJson(text, {}) : {};
+        });
+      }
+      return response.json();
+    });
+  }
+
+  function getSonarUrl() {
+    if (sonarDirect.url) {
+      return Promise.resolve(sonarDirect.url);
+    }
+    if (sonarDirect.urlPromise) {
+      return sonarDirect.urlPromise;
+    }
+    sonarDirect.urlPromise = fetch(SONAR_SUBAPPS_URL).then(function (response) {
+      if (!response.ok) {
+        throw new Error('subApps HTTP ' + response.status);
+      }
+      return response.json();
+    }).then(function (payload) {
+      var sonar = payload && payload.subApps && payload.subApps.sonar;
+      if (!sonar || sonar.isEnabled === false || sonar.isReady === false || sonar.isRunning === false) {
+        throw new Error('Sonar is not ready');
+      }
+      var url = sonar.metadata && sonar.metadata.webServerAddress;
+      if (!isLoopbackHttpUrl(url)) {
+        throw new Error('Sonar URL is not loopback');
+      }
+      sonarDirect.url = url;
+      return url;
+    }).catch(function (error) {
+      sonarDirect.url = '';
+      sonarDirect.urlPromise = null;
+      throw error;
+    });
+    return sonarDirect.urlPromise;
+  }
+
+  function isLoopbackHttpUrl(value) {
+    try {
+      var url = new URL(value);
+      return (url.protocol === 'http:' || url.protocol === 'https:') &&
+        ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(url.hostname) !== -1;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function connectHelper(settings) {
     settings = Object.assign({}, DEFAULT_SETTINGS, settings || {});
     if (helperSocket && (helperSocket.readyState === WebSocket.OPEN || helperSocket.readyState === WebSocket.CONNECTING)) {
@@ -265,7 +539,7 @@
       Object.keys(contexts).forEach(function (context) {
         var contextSettings = settingsFor(context);
         if (contextSettings.target) {
-          helperSend({ command: 'subscribe', targetKind: contextSettings.targetKind, target: contextSettings.target, targetId: contextSettings.targetId, pollMs: clampPollMs(contextSettings.pollMs) });
+          sendTargetCommand({ command: 'subscribe', targetKind: contextSettings.targetKind, target: contextSettings.target, targetId: contextSettings.targetId, pollMs: clampPollMs(contextSettings.pollMs) });
         }
         if (contextSettings.displayMode === 'battery' || (contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery') {
           helperSend({ command: 'battery', target: contextSettings.batteryName || contextSettings.target, pollMs: clampPollMs(contextSettings.pollMs) });
@@ -323,7 +597,7 @@
     var settings = settingsFor(message.context);
     connectHelper(settings);
     if (settings.target) {
-      helperSend({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, pollMs: clampPollMs(settings.pollMs) });
+      sendTargetCommand({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, pollMs: clampPollMs(settings.pollMs) });
     }
     if (settings.displayMode === 'battery' || message.action === 'local.streamdock.sonar.battery') {
       helperSend({ command: 'battery', target: settings.batteryName || settings.target, pollMs: clampPollMs(settings.pollMs) });
@@ -339,19 +613,21 @@
       showAlert(context);
       return;
     }
-    var ok = true;
-    targets.forEach(function (target) {
-      if (target.setVolume !== null || target.mute !== undefined) {
-        ok = applyPresetTarget(target, settings) && ok;
-      } else {
-        ok = helperSend({ command: 'toggle_mute', targetKind: target.targetKind, target: target.target, targetId: target.targetId || settings.targetId }) && ok;
+    var tasks = targets.map(function (target) {
+      if ((target.setVolume !== undefined && target.setVolume !== null) || target.mute !== undefined) {
+        return applyPresetTarget(target, settings);
       }
+      return sendTargetCommand({ command: 'toggle_mute', targetKind: target.targetKind, target: target.target, targetId: target.targetId || settings.targetId });
     });
-    if (ok) {
-      showOk(context);
-    } else {
+    Promise.all(tasks).then(function (results) {
+      if (results.every(Boolean)) {
+        showOk(context);
+      } else {
+        showAlert(context);
+      }
+    }).catch(function () {
       showAlert(context);
-    }
+    });
   }
 
   function toggleMute(context) {
@@ -359,26 +635,28 @@
   }
 
   function applyPresetTarget(target, settings) {
-    var ok = true;
-    if (target.setVolume !== null && Number.isFinite(target.setVolume)) {
-      ok = helperSend({
+    var tasks = [];
+    if (target.setVolume !== undefined && target.setVolume !== null && Number.isFinite(target.setVolume)) {
+      tasks.push(sendTargetCommand({
         command: 'set_volume',
         targetKind: target.targetKind,
         target: target.target,
         targetId: target.targetId || settings.targetId,
         value: clampVolume(target.setVolume, settings)
-      }) && ok;
+      }));
     }
     if (target.mute !== undefined) {
-      ok = helperSend({
+      tasks.push(sendTargetCommand({
         command: 'set_mute',
         targetKind: target.targetKind,
         target: target.target,
         targetId: target.targetId || settings.targetId,
         value: target.mute === true || target.mute === 'true' ? 1 : 0
-      }) && ok;
+      }));
     }
-    return ok;
+    return Promise.all(tasks).then(function (results) {
+      return results.every(Boolean);
+    });
   }
 
   function adjustVolume(context, ticks) {
@@ -394,27 +672,30 @@
       }
       return;
     }
-    var ok = true;
-    targets.forEach(function (target) {
+    var tasks = targets.map(function (target) {
       var current = helperState.targets[target.targetId || target.target] || helperState.targets[target.target] || {};
       var targetSetVolume = target.setVolume;
       if ((targetSetVolume === null || !Number.isFinite(targetSetVolume)) && typeof current.volume === 'number') {
         targetSetVolume = clampVolume(Number(current.volume) + Number(target.amount || 0), settings);
       }
-      ok = helperSend({
+      return sendTargetCommand({
         command: targetSetVolume !== null && Number.isFinite(targetSetVolume) ? 'set_volume' : 'volume_delta',
         targetKind: target.targetKind,
         target: target.target,
         targetId: target.targetId || settings.targetId,
         amount: target.amount,
         value: targetSetVolume
-      }) && ok;
+      });
     });
-    if (ok) {
-      showOk(context);
-    } else {
+    Promise.all(tasks).then(function (results) {
+      if (results.every(Boolean)) {
+        showOk(context);
+      } else {
+        showAlert(context);
+      }
+    }).catch(function () {
       showAlert(context);
-    }
+    });
   }
 
   function clampVolume(value, settings) {
@@ -439,6 +720,25 @@
     var pct = Number(value);
     if (!Number.isFinite(pct)) return 20;
     return Math.max(1, Math.min(100, Math.round(pct)));
+  }
+
+  function pollSonarTargets() {
+    Object.keys(contexts).forEach(function (context) {
+      var settings = settingsFor(context);
+      if (String(settings.targetKind || '').toLowerCase() !== 'sonar' || !settings.target) {
+        return;
+      }
+      var pollMs = clampPollMs(settings.pollMs);
+      var key = settings.target;
+      var lastPoll = sonarDirect.polls[key] || 0;
+      if (Date.now() - lastPoll < pollMs) {
+        return;
+      }
+      sonarDirect.polls[key] = Date.now();
+      sendTargetCommand({ command: 'subscribe', targetKind: 'sonar', target: settings.target, pollMs: pollMs }).catch(function () {
+        // sendTargetCommand already records direct failure and falls back where possible.
+      });
+    });
   }
 
   function selectPresetByDial(context, ticks) {
@@ -506,4 +806,6 @@
     };
     streamDockSocket.onmessage = handleMessage;
   };
+
+  setInterval(pollSonarTargets, 250);
 }());

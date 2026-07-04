@@ -2,7 +2,7 @@
 
 Mirabox Stream Dock JavaScript/HTML plugin for controlling SteelSeries GG Sonar-related audio targets.
 
-The initial implementation should use Windows audio sessions or Sonar virtual devices. Direct Sonar internal mixer channel control requires a separate GG/Sonar local API investigation before implementation.
+The plugin runs as a Stream Dock Node.js plugin. It controls SteelSeries Sonar's local REST API directly for `Sonar API` targets and can auto-start the bundled Windows audio helper when device/session fallback or battery support is needed.
 
 ## Version
 
@@ -33,6 +33,8 @@ Initial actions:
 - Mic mute action
 - Per-target poll interval
 - Optional exact device/session ID matching
+- Direct Sonar REST API channel control with helper fallback
+- Bundled helper auto-start when packaged with `npm run release:zip`
 - Headset battery display when SteelSeries GG exposes battery data locally
 - Optional title alias for cleaner key labels
 - Generated key images for volume, mute, missing target, and headset battery states
@@ -56,19 +58,18 @@ Expected helper messages:
 ## Repository Layout
 
 - `manifest.json`: Stream Dock plugin manifest.
-- `plugin.html` / `plugin.js`: Stream Dock runtime plugin.
+- `plugin/index.js`: Stream Dock Node.js runtime plugin.
 - `property-inspector.*`: Stream Dock settings UI.
 - `icons/`: plugin icon assets.
 - `scripts/package-plugin.js`: creates a distributable `.sdPlugin` directory.
-- `helper/`: Windows Core Audio helper.
+- `helper/`: Windows Core Audio helper source, packaged as a bundled fallback by the release script.
 
 ## Stream Dock Plugin
 
 Package this repository root as the plugin directory, or copy these files into a Stream Dock plugin folder:
 
 - `manifest.json`
-- `plugin.html`
-- `plugin.js`
+- `plugin/`
 - `property-inspector.html`
 - `property-inspector.js`
 - `property-inspector.css`
@@ -102,7 +103,26 @@ npm run release:zip
 
 ## Helper
 
-The Windows helper lives in `helper/` and is a .NET Windows console app.
+The Windows helper lives in `helper/` and is a .NET Windows console app. Release builds place it inside the `.sdPlugin/helper/` folder, and the Node plugin starts it automatically when the helper endpoint is needed.
+
+## Sonar API Targets
+
+Set `Target kind` to `Sonar API` to control Sonar's internal mixer channels instead of Windows device/session volume. Use `Refresh` in the Property Inspector to populate known targets.
+
+Target examples:
+
+```text
+classic:master
+classic:game
+classic:chat
+classic:media
+classic:aux
+classic:mic
+streamer:monitoring:game
+streamer:streaming:game
+```
+
+The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.0.1:6327/subApps`, then reads `subApps.sonar.metadata.webServerAddress`. Only loopback Sonar URLs are accepted. Because this runs in Node.js, the Sonar self-signed TLS certificate is accepted and browser CORS does not apply. If the direct request still fails, `classic:game`, `classic:chat`, `classic:media`, and `classic:aux` fall back to the matching Sonar virtual output devices through the bundled helper.
 
 ### Build
 

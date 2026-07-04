@@ -1,9 +1,11 @@
 {
   "Name": "Stream Dock Sonar",
-  "Description": "Control SteelSeries GG Sonar-related audio targets through a local Windows audio helper.",
+  "Description": "Control SteelSeries GG Sonar targets directly when available, with a local Windows audio helper fallback.",
   "Author": "local",
   "Version": "0.2.0",
-  "CodePath": "plugin.html",
+  "SDKVersion": 1,
+  "CodePathWin": "plugin/index.js",
+  "CodePathMac": "plugin/index.js",
   "Icon": "icons/plugin",
   "Category": "Audio",
   "OS": [
@@ -12,11 +14,17 @@
       "MinimumVersion": "10"
     }
   ],
+  "Software": {
+    "MinimumVersion": "3.10.188.226"
+  },
+  "Nodejs": {
+    "Version": "20"
+  },
   "Actions": [
     {
       "UUID": "local.streamdock.sonar.control",
       "Name": "Sonar Control",
-      "Tooltip": "Adjust or mute a configured Sonar virtual device or Windows audio session.",
+      "Tooltip": "Adjust or mute a configured Sonar API channel, virtual device, or Windows audio session.",
       "Controllers": ["Keypad", "Knob"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Sonar", "Image": "icons/plugin" }],
@@ -43,7 +51,7 @@
     {
       "UUID": "local.streamdock.sonar.diagnostics",
       "Name": "Diagnostics",
-      "Tooltip": "Show Sonar helper diagnostics.",
+      "Tooltip": "Show Sonar direct/API helper diagnostics.",
       "Controllers": ["Keypad"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Diag", "Image": "icons/plugin" }],

@@ -27,6 +27,26 @@
   };
   var helperSocket = null;
   var lastSnapshot = { deviceStates: [], sessionStates: [] };
+  var SONAR_TARGETS = [
+    { target: 'classic:master', label: 'Classic Master' },
+    { target: 'classic:game', label: 'Classic Game' },
+    { target: 'classic:chat', label: 'Classic Chat' },
+    { target: 'classic:media', label: 'Classic Media' },
+    { target: 'classic:aux', label: 'Classic Aux' },
+    { target: 'classic:mic', label: 'Classic Mic' },
+    { target: 'streamer:monitoring:master', label: 'Stream Personal Master' },
+    { target: 'streamer:monitoring:game', label: 'Stream Personal Game' },
+    { target: 'streamer:monitoring:chat', label: 'Stream Personal Chat' },
+    { target: 'streamer:monitoring:media', label: 'Stream Personal Media' },
+    { target: 'streamer:monitoring:aux', label: 'Stream Personal Aux' },
+    { target: 'streamer:monitoring:mic', label: 'Stream Personal Mic' },
+    { target: 'streamer:streaming:master', label: 'Stream Broadcast Master' },
+    { target: 'streamer:streaming:game', label: 'Stream Broadcast Game' },
+    { target: 'streamer:streaming:chat', label: 'Stream Broadcast Chat' },
+    { target: 'streamer:streaming:media', label: 'Stream Broadcast Media' },
+    { target: 'streamer:streaming:aux', label: 'Stream Broadcast Aux' },
+    { target: 'streamer:streaming:mic', label: 'Stream Broadcast Mic' }
+  ];
 
   function byId(id) {
     return document.getElementById(id);
@@ -59,6 +79,9 @@
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
     renderPresetNames();
     renderEndpointStatus();
+    if (settings.targetKind === 'sonar') {
+      renderSonarTargets();
+    }
   }
 
   function setStatus(text) {
@@ -91,6 +114,11 @@
   }
 
   function refreshTargets() {
+    if (settings.targetKind === 'sonar') {
+      renderSonarTargets();
+      setStatus('sonar targets loaded');
+      return;
+    }
     if (helperSocket && (helperSocket.readyState === WebSocket.OPEN || helperSocket.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -141,6 +169,17 @@
     }
   }
 
+  function renderSonarTargets() {
+    var list = byId('targets');
+    list.innerHTML = '';
+    SONAR_TARGETS.forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = item.target;
+      option.label = item.label;
+      list.appendChild(option);
+    });
+  }
+
   function applySettings(next) {
     settings = Object.assign({}, settings, next || {});
     Object.keys(settings).forEach(function (key) {
@@ -154,6 +193,9 @@
     });
     renderPresetNames();
     renderEndpointStatus();
+    if (settings.targetKind === 'sonar') {
+      renderSonarTargets();
+    }
   }
 
   function parsePresets() {
@@ -274,6 +316,10 @@
   }
 
   function capturePreset() {
+    if (settings.targetKind === 'sonar') {
+      setStatus('sonar capture unavailable');
+      return;
+    }
     var states = settings.targetKind === 'session' ? lastSnapshot.sessionStates : lastSnapshot.deviceStates;
     if (!states || !states.length) {
       setStatus('refresh targets first');
@@ -332,10 +378,17 @@
     if (!settings.endpoint) issues.push('missing endpoint');
     if (!/^wss?:\/\//i.test(settings.endpoint)) issues.push('invalid endpoint');
     if (!isLoopbackEndpoint(settings.endpoint)) issues.push('remote helper');
+    if (settings.targetKind === 'sonar' && settings.target && !isKnownSonarTarget(settings.target)) issues.push('unknown sonar target');
     if (!settings.target && settings.displayMode !== 'battery' && !settings.presetsJson && !settings.presetJson) issues.push('missing target');
     if (Number(settings.maxVolume) < Number(settings.minVolume)) issues.push('volume range reversed');
     if (settings.displayMode === 'battery' && !settings.batteryName && !settings.target) issues.push('battery target unset');
     setStatus(issues.join(', ') || 'diagnostics ok');
+  }
+
+  function isKnownSonarTarget(target) {
+    return SONAR_TARGETS.some(function (item) {
+      return item.target === target;
+    });
   }
 
   function resetSettings() {
