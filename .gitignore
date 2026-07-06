@@ -3,3 +3,7 @@ dist/
 *.sdPlugin/
 bin/
 obj/
+.env
+.env.*
+!.env.example
+*.log
