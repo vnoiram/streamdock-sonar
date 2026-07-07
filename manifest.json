@@ -2,7 +2,7 @@
   "Name": "Stream Dock Sonar",
   "Description": "Control SteelSeries GG Sonar targets directly when available, with a local Windows audio helper fallback.",
   "Author": "local",
-  "Version": "0.2.1",
+  "Version": "0.2.2",
   "SDKVersion": 1,
   "CodePathWin": "plugin/index.js",
   "CodePathMac": "plugin/index.js",
