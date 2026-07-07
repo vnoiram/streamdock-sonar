@@ -34,7 +34,7 @@ Initial actions:
 - Per-target poll interval
 - Optional exact device/session ID matching
 - Direct Sonar REST API channel control with helper fallback
-- Bundled helper auto-start when packaged with `npm run release:zip`
+- Bundled helper auto-start when installed from a release zip with `-InstallHelper`
 - Headset battery display when SteelSeries GG exposes battery data locally
 - Optional title alias for cleaner key labels
 - Generated key images for volume, mute, missing target, and headset battery states
@@ -103,7 +103,12 @@ npm run release:zip
 
 ## Helper
 
-The Windows helper lives in `helper/` and is a .NET Windows console app. Release builds place it inside the `.sdPlugin/helper/` folder, and the Node plugin starts it automatically when the helper endpoint is needed.
+The Windows helper lives in `helper/` and is a .NET Windows console app. Once installed into `.sdPlugin/helper/`, the Node plugin starts it automatically when the helper endpoint is needed.
+Release zips include the published helper as a sidecar `helper/` directory. To install that helper into the plugin, run:
+
+```powershell
+.\scripts\install-local.ps1 -InstallHelper
+```
 
 ## Sonar API Targets
 

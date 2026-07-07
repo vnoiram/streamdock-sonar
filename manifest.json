@@ -7,7 +7,7 @@
   "CodePathWin": "plugin/index.js",
   "CodePathMac": "plugin/index.js",
   "Icon": "icons/plugin",
-  "Category": "Audio",
+  "Category": "GG-Sonar",
   "OS": [
     {
       "Platform": "windows",

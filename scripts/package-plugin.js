@@ -30,8 +30,4 @@ fs.rmSync(outDir, { recursive: true, force: true });
 for (const item of include) {
   copyRecursive(path.join(root, item), path.join(outDir, item));
 }
-const helperDir = path.join(root, 'dist', 'helper');
-if (fs.existsSync(helperDir)) {
-  copyRecursive(helperDir, path.join(outDir, 'helper'));
-}
 console.log(outDir);

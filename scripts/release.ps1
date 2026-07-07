@@ -7,8 +7,10 @@ $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $Root
 
-dotnet publish helper/SonarAudioHelper.csproj -c $Configuration -r $Runtime --self-contained false -o dist/helper
+dotnet publish helper/SonarAudioHelper.csproj -c $Configuration -r $Runtime --self-contained false -p:EnableWindowsTargeting=true -o dist/helper
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm run package
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $Manifest = Get-Content "manifest.json" -Raw | ConvertFrom-Json
 $ReleaseDir = Join-Path $Root "dist/release"
@@ -18,6 +20,7 @@ if (Test-Path $Zip) { Remove-Item $Zip -Force }
 
 Compress-Archive -Path @(
   "dist/stream-dock-sonar.sdPlugin",
+  "dist/helper",
   "scripts/install-local.ps1"
 ) -DestinationPath $Zip
 

@@ -53,7 +53,7 @@ internal static class Program
         }
 
         var id = Guid.NewGuid();
-        using var webSocketContext = await context.AcceptWebSocketAsync(subProtocol: null);
+        var webSocketContext = await context.AcceptWebSocketAsync(subProtocol: null);
         var socket = webSocketContext.WebSocket;
         var state = new ClientState(socket);
         Clients[id] = state;
@@ -116,37 +116,38 @@ internal static class Program
                 continue;
             }
 
-            client.Subscriptions[(command.TargetKind ?? "device") + ":" + command.Target] =
-                new TargetRef(command.TargetKind ?? "device", command.Target, Math.Clamp(command.PollMs ?? 1000, 250, 10000), command.TargetId);
+            var target = command.Target ?? string.Empty;
+            client.Subscriptions[(command.TargetKind ?? "device") + ":" + target] =
+                new TargetRef(command.TargetKind ?? "device", target, Math.Clamp(command.PollMs ?? 1000, 250, 10000), command.TargetId);
 
             if (command.Command == "subscribe")
             {
-                Log($"subscribe {command.TargetKind}:{command.Target}");
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+                Log($"subscribe {command.TargetKind}:{target}");
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", target, command.TargetId);
             }
             else if (command.Command == "toggle_mute")
             {
-                Log($"toggle_mute {command.TargetKind}:{command.Target}");
-                Audio.ToggleMute(command.TargetKind ?? "device", command.Target, command.TargetId);
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+                Log($"toggle_mute {command.TargetKind}:{target}");
+                Audio.ToggleMute(command.TargetKind ?? "device", target, command.TargetId);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", target, command.TargetId);
             }
             else if (command.Command == "volume_delta")
             {
-                Log($"volume_delta {command.TargetKind}:{command.Target} {command.Amount}");
-                Audio.AdjustVolume(command.TargetKind ?? "device", command.Target, command.TargetId, command.Amount);
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+                Log($"volume_delta {command.TargetKind}:{target} {command.Amount}");
+                Audio.AdjustVolume(command.TargetKind ?? "device", target, command.TargetId, command.Amount);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", target, command.TargetId);
             }
             else if (command.Command == "set_volume")
             {
-                Log($"set_volume {command.TargetKind}:{command.Target} {command.Value}");
-                Audio.SetVolume(command.TargetKind ?? "device", command.Target, command.TargetId, command.Value);
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+                Log($"set_volume {command.TargetKind}:{target} {command.Value}");
+                Audio.SetVolume(command.TargetKind ?? "device", target, command.TargetId, command.Value);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", target, command.TargetId);
             }
             else if (command.Command == "set_mute")
             {
-                Log($"set_mute {command.TargetKind}:{command.Target} {command.Value}");
-                Audio.SetMute(command.TargetKind ?? "device", command.Target, command.TargetId, command.Value != 0);
-                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", command.Target, command.TargetId);
+                Log($"set_mute {command.TargetKind}:{target} {command.Value}");
+                Audio.SetMute(command.TargetKind ?? "device", target, command.TargetId, command.Value != 0);
+                await PublishStateAsync(client.Socket, command.TargetKind ?? "device", target, command.TargetId);
             }
         }
     }
@@ -273,7 +274,7 @@ internal sealed class AudioController
     public IReadOnlyList<TargetInfo> ListDeviceDetails()
     {
         var names = new List<TargetInfo>();
-        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+        var enumerator = CreateDeviceEnumerator();
         enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceState.Active, out var collection);
         collection.GetCount(out var count);
         for (uint i = 0; i < count; i++)
@@ -293,7 +294,7 @@ internal sealed class AudioController
     public IReadOnlyList<TargetInfo> ListSessionDetails()
     {
         var names = new Dictionary<string, TargetInfo>(StringComparer.OrdinalIgnoreCase);
-        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+        var enumerator = CreateDeviceEnumerator();
         enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceState.Active, out var collection);
         collection.GetCount(out var deviceCount);
         for (uint i = 0; i < deviceCount; i++)
@@ -446,6 +447,12 @@ internal sealed class AudioController
         return targetKind.Equals("session", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static IMMDeviceEnumerator CreateDeviceEnumerator()
+    {
+        var type = Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), throwOnError: true)!;
+        return (IMMDeviceEnumerator)Activator.CreateInstance(type)!;
+    }
+
     private static float Clamp01(float value)
     {
         return Math.Max(0f, Math.Min(1f, value));
@@ -453,7 +460,7 @@ internal sealed class AudioController
 
     private static DeviceHandle? FindDevice(string target, string? targetId = null)
     {
-        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+        var enumerator = CreateDeviceEnumerator();
         enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceState.Active, out var collection);
         collection.GetCount(out var count);
         for (uint i = 0; i < count; i++)
@@ -482,7 +489,7 @@ internal sealed class AudioController
 
     private static SessionHandle? FindSession(string target, string? targetId = null)
     {
-        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+        var enumerator = CreateDeviceEnumerator();
         enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceState.Active, out var collection);
         collection.GetCount(out var deviceCount);
         for (uint i = 0; i < deviceCount; i++)

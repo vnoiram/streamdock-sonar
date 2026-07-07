@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [string]$PluginRoot,
+  [switch]$InstallHelper,
   [switch]$NoBuild,
   [switch]$DryRun
 )
@@ -121,10 +122,18 @@ $Target = Join-Path $InstallRoot $PluginName
 
 if ($DryRun) {
   Write-Host "Dry run: would install '$PackageDir' to '$Target'."
-  if (Test-Path $ExtraHelperDir) {
+  if ($InstallHelper -and (Test-Path $ExtraHelperDir)) {
     Write-Host "Dry run: would copy '$ExtraHelperDir' to '$Target\helper'."
+  } elseif ((Test-Path $ExtraHelperDir) -and -not $InstallHelper) {
+    Write-Host "Dry run: bundled helper found at '$ExtraHelperDir'; pass -InstallHelper to install it."
+  } elseif ($InstallHelper) {
+    Write-Host "Dry run: -InstallHelper was specified, but no bundled helper was found next to '$PackageDir'."
   }
   exit 0
+}
+
+if ($InstallHelper -and -not (Test-Path $ExtraHelperDir)) {
+  throw "-InstallHelper was specified, but no bundled helper was found next to '$PackageDir'."
 }
 
 if ($PSCmdlet.ShouldProcess($InstallRoot, "Create Stream Dock plugin root")) {
@@ -136,8 +145,11 @@ if ((Test-Path $Target) -and $PSCmdlet.ShouldProcess($Target, "Remove existing p
 if ($PSCmdlet.ShouldProcess($Target, "Install plugin")) {
   Copy-Item -Recurse -Force $PackageDir $Target
 }
-if ((Test-Path $ExtraHelperDir) -and $PSCmdlet.ShouldProcess((Join-Path $Target "helper"), "Install bundled helper")) {
+if ($InstallHelper -and (Test-Path $ExtraHelperDir) -and $PSCmdlet.ShouldProcess((Join-Path $Target "helper"), "Install bundled helper")) {
   Copy-Item -Recurse -Force $ExtraHelperDir (Join-Path $Target "helper")
+}
+if ((Test-Path $ExtraHelperDir) -and -not $InstallHelper) {
+  Write-Host "Bundled helper found at '$ExtraHelperDir'. Pass -InstallHelper to install it."
 }
 
 Write-Host "Installed $PluginName to $Target"
