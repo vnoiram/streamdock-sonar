@@ -53,10 +53,24 @@ powershell -ExecutionPolicy Bypass -File scripts\build-release-in-windows-docker
 
 The script stages WSL paths when needed, copies the sibling `StreamDockSDK` repo into the staging tree, builds the Windows container image, runs `scripts/release.ps1` inside the container, and copies `dist/` back to the working tree.
 
-Local Windows build:
+Automatic local release build:
 
 ```powershell
 npm run release:zip
+```
+
+`release:zip` uses the native PowerShell release on Windows and the Linux Docker release on Linux/WSL.
+
+Explicit Linux Docker build:
+
+```bash
+npm run release:zip:linux
+```
+
+Explicit Windows local build:
+
+```powershell
+npm run release:zip:windows
 ```
 
 JavaScript and manifest checks:
