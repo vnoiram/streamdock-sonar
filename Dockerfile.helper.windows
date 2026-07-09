@@ -10,6 +10,7 @@ RUN Invoke-WebRequest -Uri $env:NODE_MSI_URL -OutFile C:\node.msi; `
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; `
     Remove-Item C:\node.msi -Force
 
-ENV PATH="C:\Program Files\nodejs;${PATH}"
+ENV DOTNET_ROOT="C:\Program Files\dotnet"
+ENV PATH="C:\Program Files\dotnet;C:\Program Files\nodejs;C:\Windows\system32;C:\Windows;C:\Windows\System32\WindowsPowerShell\v1.0"
 
 WORKDIR C:\work
