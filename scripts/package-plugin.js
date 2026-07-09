@@ -6,7 +6,6 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'u
 const outDir = path.join(root, 'dist', `${manifest.Name.replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()}.sdPlugin`);
 const include = [
   'manifest.json',
-  'plugin',
   'property-inspector.html',
   'property-inspector.js',
   'property-inspector.css',
@@ -30,4 +29,5 @@ fs.rmSync(outDir, { recursive: true, force: true });
 for (const item of include) {
   copyRecursive(path.join(root, item), path.join(outDir, item));
 }
+copyRecursive(path.join(root, 'dist', 'plugin'), path.join(outDir, 'plugin'));
 console.log(outDir);

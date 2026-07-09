@@ -7,7 +7,15 @@ $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $Root
 
-dotnet publish helper/SonarAudioHelper.csproj -c $Configuration -r $Runtime --self-contained false -p:EnableWindowsTargeting=true -o dist/helper
+$SdkRoot = if (Test-Path "Sdk/StreamDockSDK") {
+  "Sdk/StreamDockSDK"
+} elseif (Test-Path "..\StreamDockSDK") {
+  "..\StreamDockSDK"
+} else {
+  throw "StreamDockSDK was not found. Expected ..\StreamDockSDK or Sdk\StreamDockSDK."
+}
+
+dotnet publish plugin-csharp/StreamDockSonar.csproj -c $Configuration -r $Runtime --self-contained true -p:EnableWindowsTargeting=true -p:StreamDockSdkRoot=$SdkRoot -o dist/plugin
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm run package
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -20,7 +28,6 @@ if (Test-Path $Zip) { Remove-Item $Zip -Force }
 
 Compress-Archive -Path @(
   "dist/stream-dock-sonar.sdPlugin",
-  "dist/helper",
   "scripts/install-local.ps1"
 ) -DestinationPath $Zip
 

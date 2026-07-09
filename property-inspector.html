@@ -7,124 +7,36 @@
   </head>
   <body>
     <div class="sdpi-item">
-      <div class="sdpi-item-label">Mode</div>
-      <span id="modeInfo" class="sdpi-status">Select an action</span>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Endpoint</div>
-      <input id="endpoint" class="sdpi-item-value" value="ws://127.0.0.1:41922">
-      <span id="endpointStatus" class="sdpi-status">localhost helper</span>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Target kind</div>
-      <select id="targetKind" class="sdpi-item-value">
-        <option value="device">Device</option>
-        <option value="session">Session</option>
-        <option value="sonar">Sonar API</option>
-      </select>
-    </div>
-    <div class="sdpi-item">
       <div class="sdpi-item-label">Target</div>
-      <select id="target" class="sdpi-item-value">
-        <option value="">Select target</option>
+      <select id="targetRole" class="sdpi-item-value">
+        <option value="master">Master</option>
+        <option value="game">Game</option>
+        <option value="chatRender">Chat</option>
+        <option value="media">Media</option>
+        <option value="aux">Aux</option>
+        <option value="chatCapture">Microphone</option>
       </select>
     </div>
-    <input id="targetId" type="hidden">
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Step</div>
+      <input id="step" class="sdpi-item-value" type="number" min="1" max="20" value="2">
+    </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Title label</div>
       <input id="titleLabel" class="sdpi-item-value" placeholder="optional display alias">
     </div>
     <div class="sdpi-item">
-      <div class="sdpi-item-label">Display</div>
-      <select id="displayMode" class="sdpi-item-value">
-        <option value="volume">Volume</option>
-        <option value="battery">Battery</option>
-      </select>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Battery</div>
-      <select id="batteryName" class="sdpi-item-value">
-        <option value="">Auto-detect</option>
-      </select>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Step</div>
-      <input id="volumeStep" class="sdpi-item-value" type="number" min="1" max="20" value="2">
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Volume min</div>
-      <input id="minVolume" class="sdpi-item-value" type="number" min="0" max="100" value="0">
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Volume max</div>
-      <input id="maxVolume" class="sdpi-item-value" type="number" min="0" max="100" value="100">
-    </div>
-    <div class="sdpi-item">
       <div class="sdpi-item-label">Invert knob</div>
       <input id="invertKnob" class="sdpi-checkbox" type="checkbox">
     </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Poll ms</div>
-      <input id="pollMs" class="sdpi-item-value" type="number" min="250" max="10000" value="1000">
+    <div class="sdpi-item diagnostics">
+      <div class="sdpi-item-label">Diagnostics</div>
+      <button id="refreshDiagnostics" class="sdpi-button" type="button">Refresh</button>
+      <span id="status" class="sdpi-status">not checked</span>
     </div>
-    <div class="sdpi-item block">
-      <div class="sdpi-item-label">Preset JSON</div>
-      <textarea id="presetJson" class="sdpi-item-value textarea" placeholder='[{"targetKind":"device","target":"Sonar - Gaming","amount":2},{"targetKind":"device","target":"Sonar - Chat","amount":-2}]'></textarea>
-    </div>
-    <div class="sdpi-item block">
-      <div class="sdpi-item-label">Presets</div>
-      <textarea id="presetsJson" class="sdpi-item-value textarea" placeholder='{"Streaming":[{"targetKind":"device","target":"Sonar - Gaming","setVolume":70},{"targetKind":"device","target":"Sonar - Chat","setVolume":45,"mute":false}]}'></textarea>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Preset name</div>
-      <input id="presetName" class="sdpi-item-value" list="presetNames" placeholder="Streaming">
-      <datalist id="presetNames"></datalist>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Preset dial</div>
-      <select id="presetDialMode" class="sdpi-item-value">
-        <option value="volume">Volume adjust</option>
-        <option value="select">Select preset</option>
-      </select>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Apply</div>
-      <select id="presetApplyMode" class="sdpi-item-value">
-        <option value="both">Press and rotate stop</option>
-        <option value="rotateEnd">Rotate stop only</option>
-        <option value="press">Press only</option>
-      </select>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Apply delay</div>
-      <input id="presetApplyDelayMs" class="sdpi-item-value" type="number" min="100" max="3000" value="700">
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Images</div>
-      <input id="generatedImages" class="sdpi-checkbox" type="checkbox" checked>
-      <span class="sdpi-status">show volume/battery state images</span>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Battery warn</div>
-      <input id="batteryWarnPercent" class="sdpi-item-value" type="number" min="1" max="100" value="20">
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Targets</div>
-      <button id="refreshTargets" class="sdpi-button" type="button">Refresh</button>
-      <button id="capturePreset" class="sdpi-button" type="button">Capture</button>
-      <button id="dryRunPreset" class="sdpi-button" type="button">Dry-run</button>
-      <button id="diagnoseSettings" class="sdpi-button" type="button">Diagnose</button>
-      <button id="resetSettings" class="sdpi-button" type="button">Reset</button>
-      <span id="status" class="sdpi-status">helper not checked</span>
-    </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Settings</div>
-      <button id="copySettings" class="sdpi-button" type="button">Copy</button>
-      <button id="pasteSettings" class="sdpi-button" type="button">Paste</button>
-      <button id="exportSettings" class="sdpi-button" type="button">Export</button>
-      <button id="copyDiagnostics" class="sdpi-button" type="button">Log</button>
-      <label class="sdpi-button" for="importSettings">Import</label>
-      <input id="importSettings" type="file" accept="application/json" hidden>
+    <div class="sdpi-item block diagnostics">
+      <div class="sdpi-item-label">Result</div>
+      <pre id="diagnosticsOutput" class="sdpi-item-value textarea"></pre>
     </div>
   </body>
 </html>

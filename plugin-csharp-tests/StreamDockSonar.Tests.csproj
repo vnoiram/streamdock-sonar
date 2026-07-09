@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <StreamDockSdkRoot Condition="'$(StreamDockSdkRoot)' == ''">..\..\StreamDockSDK</StreamDockSdkRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\plugin-csharp\StreamDockSonar.csproj"/>
+  </ItemGroup>
+
+</Project>

@@ -8,8 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
-$WorkRoot = $Root
-$StagingRoot = $null
+$StagingRoot = Join-Path $env:TEMP "streamdock-sonar-build"
+$WorkRoot = $StagingRoot
 
 function Resolve-DockerExe {
   param([string]$Override)
@@ -51,17 +51,26 @@ function Copy-Tree {
   }
 }
 
+function Copy-Sdk {
+  param(
+    [string]$Destination
+  )
+
+  $sdkRoot = Resolve-Path (Join-Path $Root "..\StreamDockSDK")
+  New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+  robocopy $sdkRoot $Destination /MIR /XD .git bin obj /XF *.zip | Out-Host
+  if ($LASTEXITCODE -gt 7) {
+    exit $LASTEXITCODE
+  }
+}
+
 $ResolvedDockerExe = Resolve-DockerExe $DockerExe
 
-if ($Root.StartsWith("\\wsl.localhost\", [StringComparison]::OrdinalIgnoreCase) -or
-    $Root.StartsWith("\\wsl$\", [StringComparison]::OrdinalIgnoreCase)) {
-  $StagingRoot = Join-Path $env:TEMP "streamdock-sonar-build"
-  if (Test-Path $StagingRoot) {
-    Remove-Item -Recurse -Force $StagingRoot
-  }
-  Copy-Tree $Root $StagingRoot
-  $WorkRoot = $StagingRoot
+if (Test-Path $StagingRoot) {
+  Remove-Item -Recurse -Force $StagingRoot
 }
+Copy-Tree $Root $StagingRoot
+Copy-Sdk (Join-Path $StagingRoot "Sdk\StreamDockSDK")
 
 Invoke-Docker build `
   --file (Join-Path $WorkRoot "Dockerfile.helper.windows") `
@@ -74,12 +83,10 @@ Invoke-Docker run --rm `
   $Image `
   "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "scripts\release.ps1" -Configuration $Configuration -Runtime $Runtime
 
-if ($StagingRoot) {
-  $SourceDist = Join-Path $StagingRoot "dist"
-  $TargetDist = Join-Path $Root "dist"
-  New-Item -ItemType Directory -Force -Path $TargetDist | Out-Null
-  robocopy $SourceDist $TargetDist /MIR | Out-Host
-  if ($LASTEXITCODE -gt 7) {
-    exit $LASTEXITCODE
-  }
+$SourceDist = Join-Path $StagingRoot "dist"
+$TargetDist = Join-Path $Root "dist"
+New-Item -ItemType Directory -Force -Path $TargetDist | Out-Null
+robocopy $SourceDist $TargetDist /MIR | Out-Host
+if ($LASTEXITCODE -gt 7) {
+  exit $LASTEXITCODE
 }
