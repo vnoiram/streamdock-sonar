@@ -32,7 +32,7 @@ The plugin reads `/mode` before writes:
 - `classic`: uses `/volumeSettings/classic/...` routes and never calls streamer routes.
 - `stream`: uses `/volumeSettings/streamer/monitoring/...` routes.
 
-`500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session helper behavior.
+`500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
 
 ## Repository Layout
 
@@ -43,14 +43,12 @@ The plugin reads `/mode` before writes:
 - `scripts/package-plugin.js`: creates a distributable `.sdPlugin` directory from `dist/plugin`.
 - `scripts/release.ps1`: publishes the C# plugin and creates the release zip.
 
-The old Node/helper implementation remains in the repository for reference during migration, but it is not listed in the manifest and is not packaged by the release script.
-
 ## Build
 
 The supported release build path uses Windows Docker:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build-helper-in-windows-docker.ps1
+powershell -ExecutionPolicy Bypass -File scripts\build-release-in-windows-docker.ps1
 ```
 
 The script stages WSL paths when needed, copies the sibling `StreamDockSDK` repo into the staging tree, builds the Windows container image, runs `scripts/release.ps1` inside the container, and copies `dist/` back to the working tree.

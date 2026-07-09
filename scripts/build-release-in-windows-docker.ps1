@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$Image = "streamdock-sonar-helper-build:local",
+  [string]$Image = "streamdock-sonar-release-build:local",
   [string]$Configuration = "Release",
   [string]$Runtime = "win-x64",
   [string]$DockerExe
@@ -56,7 +56,21 @@ function Copy-Sdk {
     [string]$Destination
   )
 
-  $sdkRoot = Resolve-Path (Join-Path $Root "..\StreamDockSDK")
+  $sdkCandidates = @(
+    (Join-Path $Root "..\StreamDockSDK"),
+    (Join-Path (Split-Path -Parent $Root) "StreamDockSDK")
+  )
+  $sdkRoot = $null
+  foreach ($candidate in $sdkCandidates) {
+    if (Test-Path (Join-Path $candidate "StreamDockSDK\StreamDockSDK.csproj")) {
+      $sdkRoot = (Resolve-Path $candidate).ProviderPath
+      break
+    }
+  }
+  if (-not $sdkRoot) {
+    throw "StreamDockSDK was not found next to '$Root'."
+  }
+
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
   robocopy $sdkRoot $Destination /MIR /XD .git bin obj /XF *.zip | Out-Host
   if ($LASTEXITCODE -gt 7) {
@@ -73,7 +87,7 @@ Copy-Tree $Root $StagingRoot
 Copy-Sdk (Join-Path $StagingRoot "Sdk\StreamDockSDK")
 
 Invoke-Docker build `
-  --file (Join-Path $WorkRoot "Dockerfile.helper.windows") `
+  --file (Join-Path $WorkRoot "Dockerfile.release.windows") `
   --tag $Image `
   $WorkRoot
 
