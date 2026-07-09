@@ -63,6 +63,12 @@ If helper target loading fails, the `Mode` row shows `helper offline`. In that c
 
 Use `Title label` to override long target names on the key. `Volume min` and `Volume max` clamp both relative knob changes and profile `setVolume` values. `Invert knob` reverses dial direction. `Images` enables generated state images; `Battery warn` controls when battery images switch to the warning color.
 
+Helper logs are written next to the helper executable when the plugin starts it:
+
+```text
+stream-dock-sonar.sdPlugin\helper\SonarAudioHelper.log
+```
+
 Build a distributable plugin folder:
 
 ```bash

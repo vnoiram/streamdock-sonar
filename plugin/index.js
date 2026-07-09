@@ -653,7 +653,10 @@ function startBundledHelper(settings) {
     return;
   }
   const prefix = websocketEndpointToHttpPrefix(settings.endpoint || DEFAULT_SETTINGS.endpoint);
+  const logFile = path.join(path.dirname(helperPath), 'SonarAudioHelper.log');
   const args = prefix ? [`--prefix=${prefix}`] : [];
+  args.push(`--log-file=${logFile}`);
+  logMessage(`starting helper: ${helperPath}`);
   helperProcess = spawn(helperPath, args, {
     cwd: path.dirname(helperPath),
     detached: true,
