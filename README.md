@@ -97,7 +97,21 @@ npm run clean
 
 The output is written under `dist/`.
 
-Create a release zip on Windows/PowerShell:
+Create a release zip with the Windows Docker build:
+
+```powershell
+npm run release:zip:windows-docker
+```
+
+This builds `streamdock-sonar-helper-build:local` from `Dockerfile.helper.windows`, publishes the Windows helper, packages the plugin, and writes the release zip under `dist/release/`.
+
+The underlying script can also be run directly:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-helper-in-windows-docker.ps1
+```
+
+For local PowerShell-only debugging, the release script can still be run directly on Windows:
 
 ```powershell
 npm run release:zip
@@ -133,12 +147,20 @@ The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.
 
 ### Build
 
-Prerequisites:
+The supported release build path uses Windows Docker:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-helper-in-windows-docker.ps1
+```
+
+The script stages WSL paths when needed, builds the Windows container image, runs `scripts/release.ps1` inside the container, and copies `dist/` back to the working tree.
+
+Local Windows debug prerequisites:
 
 - Windows 10 or later.
 - .NET SDK 8 or later.
 
-Build:
+Local debug build:
 
 ```powershell
 dotnet build helper\SonarAudioHelper.csproj -c Release
