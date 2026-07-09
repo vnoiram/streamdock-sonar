@@ -29,8 +29,17 @@ npm run package
 version="$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('manifest.json','utf8')).Version)")"
 release_dir="dist/release"
 zip_path="$release_dir/streamdock-sonar-$version.zip"
+staging_dir="$release_dir/streamdock-sonar-$version"
 mkdir -p "$release_dir"
 rm -f "$zip_path"
+rm -rf "$staging_dir"
+mkdir -p "$staging_dir"
+cp -R dist/stream-dock-sonar.sdPlugin "$staging_dir/"
+cp scripts/install-local.ps1 "$staging_dir/"
 
-zip -qr "$zip_path" dist/stream-dock-sonar.sdPlugin scripts/install-local.ps1
+(
+  cd "$staging_dir"
+  zip -qr "$root/$zip_path" .
+)
+rm -rf "$staging_dir"
 echo "Wrote $zip_path"

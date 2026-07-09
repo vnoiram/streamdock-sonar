@@ -26,9 +26,13 @@ New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
 $Zip = Join-Path $ReleaseDir "streamdock-sonar-$($Manifest.Version).zip"
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 
-Compress-Archive -Path @(
-  "dist/stream-dock-sonar.sdPlugin",
-  "scripts/install-local.ps1"
-) -DestinationPath $Zip
+$StagingDir = Join-Path $ReleaseDir "streamdock-sonar-$($Manifest.Version)"
+if (Test-Path $StagingDir) { Remove-Item -Recurse -Force $StagingDir }
+New-Item -ItemType Directory -Force -Path $StagingDir | Out-Null
+Copy-Item -Recurse -Force "dist/stream-dock-sonar.sdPlugin" $StagingDir
+Copy-Item -Force "scripts/install-local.ps1" $StagingDir
+
+Compress-Archive -Path (Join-Path $StagingDir "*") -DestinationPath $Zip
+Remove-Item -Recurse -Force $StagingDir
 
 Write-Host "Wrote $Zip"

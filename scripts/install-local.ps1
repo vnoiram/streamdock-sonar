@@ -29,6 +29,8 @@ function Get-SearchRoots {
   param([string]$RepoRoot)
 
   $roots = @($ScriptDir, (Split-Path -Parent $ScriptDir))
+  $roots += Join-Path $ScriptDir "dist"
+  $roots += Join-Path (Split-Path -Parent $ScriptDir) "dist"
   if ($RepoRoot) {
     $roots += $RepoRoot
     $roots += Join-Path $RepoRoot "dist"
@@ -53,6 +55,13 @@ function Find-PackagedPlugin {
       Select-Object -First 1
     if ($plugin) {
       return $plugin.FullName
+    }
+
+    $nestedPlugin = Get-ChildItem -Path $root -Directory -Filter "*.sdPlugin" -Recurse -ErrorAction SilentlyContinue |
+      Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") } |
+      Select-Object -First 1
+    if ($nestedPlugin) {
+      return $nestedPlugin.FullName
     }
   }
 
