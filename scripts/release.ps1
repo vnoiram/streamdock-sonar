@@ -4,18 +4,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
 Set-Location $Root
 
 $SdkRoot = if (Test-Path "Sdk/StreamDockSDK") {
-  "Sdk/StreamDockSDK"
+  (Resolve-Path "Sdk/StreamDockSDK").ProviderPath
 } elseif (Test-Path "..\StreamDockSDK") {
-  "..\StreamDockSDK"
+  (Resolve-Path "..\StreamDockSDK").ProviderPath
 } else {
   throw "StreamDockSDK was not found. Expected ..\StreamDockSDK or Sdk\StreamDockSDK."
 }
 
-dotnet publish plugin-csharp/StreamDockSonar.csproj -c $Configuration -r $Runtime --self-contained true -p:EnableWindowsTargeting=true -p:StreamDockSdkRoot=$SdkRoot -o dist/plugin
+dotnet publish plugin-csharp/StreamDockSonar.csproj -c $Configuration -r $Runtime --self-contained true -p:EnableWindowsTargeting=true -p:StreamDockSdkRoot="$SdkRoot" -o dist/plugin
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm run package
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

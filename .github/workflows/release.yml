@@ -20,8 +20,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      - name: Checkout Sonar
         uses: actions/checkout@v7
+        with:
+          path: streamdock-sonar
+
+      - name: Checkout StreamDockSDK
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ vars.STREAMDOCK_SDK_REPOSITORY || 'vnoiram/StreamDockSDK' }}
+          ref: ${{ vars.STREAMDOCK_SDK_REF || 'master' }}
+          path: StreamDockSDK
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -35,6 +44,7 @@ jobs:
 
       - name: Validate release tag
         shell: pwsh
+        working-directory: streamdock-sonar
         run: |
           $tag = "${{ github.ref_name }}"
           if ($tag -notmatch '^v\d+\.\d+\.\d+([-.+][0-9A-Za-z.-]+)?$') {
@@ -51,14 +61,17 @@ jobs:
           }
 
       - name: Check
+        working-directory: streamdock-sonar
         run: npm run check
 
       - name: Build release zip
         shell: pwsh
+        working-directory: streamdock-sonar
         run: npm run release:zip
 
       - name: Verify release assets
         shell: pwsh
+        working-directory: streamdock-sonar
         run: |
           $assets = Get-ChildItem "dist/release/*.zip"
           if ($assets.Count -ne 1) {
@@ -70,10 +83,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: streamdock-sonar-${{ github.ref_name }}
-          path: dist/release/*.zip
+          path: streamdock-sonar/dist/release/*.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/release/*.zip
+          files: streamdock-sonar/dist/release/*.zip
           generate_release_notes: true
