@@ -112,6 +112,8 @@ Release zips include the published helper as a sidecar `helper/` directory. To i
 .\scripts\install-local.ps1 -InstallHelper
 ```
 
+When the plugin starts the bundled helper, it keeps the helper as a child process and stops it when the Stream Dock plugin process exits. If you start `SonarAudioHelper.exe` manually or install it through another startup mechanism, that external process is not managed by the plugin.
+
 ## Sonar API Targets
 
 Use `Sonar Volume`, `Sonar Mute`, or `Sonar Profile` to control Sonar's internal mixer channels instead of Windows device/session volume. The target list is built into the Property Inspector; no helper refresh is needed for these actions.

@@ -45,6 +45,8 @@ let helperSocket = null;
 let helperProcess = null;
 let reconnectTimer = null;
 let reconnectDelay = 2000;
+let sonarPollTimer = null;
+let shuttingDown = false;
 
 function parseArgs(argv) {
   const args = {};
@@ -633,6 +635,7 @@ function connectHelper(settings) {
     helperState.connected = false;
     helperState.lastError = 'helper closed';
     refreshTitles();
+    if (shuttingDown) return;
     const delay = reconnectDelay;
     reconnectDelay = Math.min(30000, reconnectDelay * 2);
     reconnectTimer = setTimeout(() => connectHelper(settings), delay);
@@ -659,7 +662,6 @@ function startBundledHelper(settings) {
   logMessage(`starting helper: ${helperPath}`);
   helperProcess = spawn(helperPath, args, {
     cwd: path.dirname(helperPath),
-    detached: true,
     stdio: 'ignore',
     windowsHide: true
   });
@@ -679,7 +681,35 @@ function startBundledHelper(settings) {
       refreshTitles();
     }
   });
-  helperProcess.unref();
+}
+
+function stopBundledHelper() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  if (helperSocket) {
+    helperSocket.close();
+    helperSocket = null;
+  }
+  if (!helperProcess) return;
+  const child = helperProcess;
+  helperProcess = null;
+  try {
+    if (child.pid) {
+      logMessage(`stopping helper: ${child.pid}`);
+      child.kill();
+    }
+  } catch (error) {
+    logMessage(`helper stop failed: ${error && error.message || error}`);
+  }
+}
+
+function shutdown(exitCode) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  clearInterval(sonarPollTimer);
+  sonarPollTimer = null;
+  stopBundledHelper();
+  process.exit(exitCode);
 }
 
 function bundledHelperPath() {
@@ -922,11 +952,18 @@ function main() {
   streamDock = new SimpleWebSocket(`ws://127.0.0.1:${args.port}`).connect();
   streamDock.onopen = () => sendToStreamDock({ event: args.registerEvent, uuid: pluginUuid });
   streamDock.onmessage = handleMessage;
-  streamDock.onclose = () => process.exit(0);
+  streamDock.onclose = () => shutdown(0);
   streamDock.onerror = error => {
     console.error(error);
   };
-  setInterval(pollSonarTargets, 250);
+  sonarPollTimer = setInterval(pollSonarTargets, 250);
 }
+
+process.once('SIGINT', () => shutdown(0));
+process.once('SIGTERM', () => shutdown(0));
+process.once('exit', () => {
+  shuttingDown = true;
+  stopBundledHelper();
+});
 
 main();
