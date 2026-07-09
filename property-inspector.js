@@ -3,6 +3,7 @@
 
   var websocket = null;
   var context = null;
+  var currentAction = '';
   var settings = {
     endpoint: 'ws://127.0.0.1:41922',
     targetKind: 'device',
@@ -47,9 +48,41 @@
     { target: 'streamer:streaming:aux', label: 'Stream Broadcast Aux' },
     { target: 'streamer:streaming:mic', label: 'Stream Broadcast Mic' }
   ];
+  var COMMON_FIELDS = ['endpoint', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings'];
+  var TARGET_FIELDS = ['targetKind', 'target', 'targetId', 'titleLabel', 'pollMs', 'generatedImages', 'refreshTargets'];
+  var ACTION_FIELDS = {
+    'local.streamdock.sonar.control': TARGET_FIELDS.concat(['volumeStep', 'minVolume', 'maxVolume', 'invertKnob', 'presetJson', 'presetsJson', 'presetName', 'presetDialMode', 'presetApplyMode', 'presetApplyDelayMs', 'capturePreset', 'dryRunPreset']),
+    'local.streamdock.sonar.micmute': TARGET_FIELDS,
+    'local.streamdock.sonar.battery': TARGET_FIELDS.concat(['displayMode', 'batteryName', 'batteryWarnPercent']),
+    'local.streamdock.sonar.diagnostics': ['diagnoseSettings', 'copyDiagnostics']
+  };
 
   function byId(id) {
     return document.getElementById(id);
+  }
+
+  function rowFor(id) {
+    var element = byId(id);
+    while (element && element !== document.body) {
+      if (element.classList && element.classList.contains('sdpi-item')) return element;
+      element = element.parentNode;
+    }
+    return null;
+  }
+
+  function setFieldVisible(id, visible) {
+    var row = rowFor(id);
+    if (row) row.classList.toggle('is-hidden', !visible);
+  }
+
+  function applyVisibility() {
+    var visible = {};
+    COMMON_FIELDS.concat(ACTION_FIELDS[currentAction] || []).forEach(function (id) {
+      visible[id] = true;
+    });
+    Object.keys(settings).concat(['refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']).forEach(function (id) {
+      setFieldVisible(id, !!visible[id]);
+    });
   }
 
   function update() {
@@ -421,6 +454,8 @@
   window.connectElgatoStreamDeckSocket = function (port, uuid, registerEvent, info, actionInfo) {
     var parsedActionInfo = JSON.parse(actionInfo || '{}');
     context = parsedActionInfo.context || uuid;
+    currentAction = parsedActionInfo.action || '';
+    applyVisibility();
     websocket = new WebSocket('ws://127.0.0.1:' + port);
     websocket.onopen = function () {
       websocket.send(JSON.stringify({ event: registerEvent, uuid: uuid }));
@@ -457,5 +492,6 @@
     byId('copyDiagnostics').addEventListener('click', copyDiagnostics);
     byId('importSettings').addEventListener('change', importSettings);
     renderEndpointStatus();
+    applyVisibility();
   });
 }());

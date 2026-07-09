@@ -40,6 +40,10 @@ body {
   flex: 1;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 .block {
   align-items: flex-start;
 }
