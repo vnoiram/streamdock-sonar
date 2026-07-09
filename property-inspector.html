@@ -25,13 +25,11 @@
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Target</div>
-      <input id="target" class="sdpi-item-value" list="targets" placeholder="Sonar - Gaming">
-      <datalist id="targets"></datalist>
+      <select id="target" class="sdpi-item-value">
+        <option value="">Select target</option>
+      </select>
     </div>
-    <div class="sdpi-item">
-      <div class="sdpi-item-label">Target ID</div>
-      <input id="targetId" class="sdpi-item-value" placeholder="optional exact device/session id">
-    </div>
+    <input id="targetId" type="hidden">
     <div class="sdpi-item">
       <div class="sdpi-item-label">Title label</div>
       <input id="titleLabel" class="sdpi-item-value" placeholder="optional display alias">
@@ -45,8 +43,9 @@
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Battery</div>
-      <input id="batteryName" class="sdpi-item-value" list="batteries" placeholder="headset name">
-      <datalist id="batteries"></datalist>
+      <select id="batteryName" class="sdpi-item-value">
+        <option value="">Auto-detect</option>
+      </select>
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Step</div>

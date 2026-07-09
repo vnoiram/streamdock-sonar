@@ -28,6 +28,7 @@
   };
   var helperSocket = null;
   var lastSnapshot = { deviceStates: [], sessionStates: [] };
+  var helperTargetStatus = '';
   var SONAR_TARGETS = [
     { target: 'classic:master', label: 'Classic Master' },
     { target: 'classic:game', label: 'Classic Game' },
@@ -56,10 +57,10 @@
     'local.streamdock.sonar.volume': SONAR_TARGET_FIELDS.concat(['volumeStep', 'minVolume', 'maxVolume', 'invertKnob']),
     'local.streamdock.sonar.mute': SONAR_TARGET_FIELDS,
     'local.streamdock.sonar.profile': ['titleLabel', 'presetsJson', 'presetName', 'presetApplyMode', 'presetApplyDelayMs', 'minVolume', 'maxVolume', 'generatedImages'],
-    'local.streamdock.sonar.helper.volume': TARGET_FIELDS.concat(['endpoint', 'targetId', 'volumeStep', 'minVolume', 'maxVolume', 'invertKnob']),
-    'local.streamdock.sonar.micmute': TARGET_FIELDS.concat(['endpoint', 'targetId']),
+    'local.streamdock.sonar.helper.volume': TARGET_FIELDS.concat(['endpoint', 'volumeStep', 'minVolume', 'maxVolume', 'invertKnob']),
+    'local.streamdock.sonar.micmute': TARGET_FIELDS.concat(['endpoint']),
     'local.streamdock.sonar.battery': ['endpoint', 'batteryName', 'titleLabel', 'pollMs', 'generatedImages', 'batteryWarnPercent'],
-    'local.streamdock.sonar.diagnostics': ['endpoint', 'targetKind', 'target', 'targetId', 'batteryName', 'refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']
+    'local.streamdock.sonar.diagnostics': ['endpoint', 'targetKind', 'target', 'batteryName', 'refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']
   };
 
   function byId(id) {
@@ -134,7 +135,7 @@
     settings.endpoint = byId('endpoint').value.trim();
     settings.targetKind = isDirectSonarAction() ? 'sonar' : byId('targetKind').value;
     settings.target = byId('target').value.trim();
-    settings.targetId = byId('targetId').value.trim();
+    settings.targetId = selectedTargetId();
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.volumeStep = Number(byId('volumeStep').value) || 2;
     settings.minVolume = Number(byId('minVolume').value) || 0;
@@ -188,9 +189,9 @@
     } else if (currentAction === 'local.streamdock.sonar.battery' ||
       currentAction === 'local.streamdock.sonar.helper.volume' ||
       currentAction === 'local.streamdock.sonar.micmute') {
-      info.textContent = 'Uses bundled Windows helper';
+      info.textContent = helperTargetStatus ? 'Uses bundled Windows helper: ' + helperTargetStatus : 'Uses bundled Windows helper';
     } else if (currentAction === 'local.streamdock.sonar.diagnostics') {
-      info.textContent = 'Diagnostics: helper tools and logs';
+      info.textContent = helperTargetStatus ? 'Diagnostics: ' + helperTargetStatus : 'Diagnostics: helper tools and logs';
     } else if (settings.targetKind === 'sonar') {
       info.textContent = 'Direct Sonar API with helper fallback';
     } else {
@@ -210,15 +211,21 @@
   function refreshTargets() {
     if (settings.targetKind === 'sonar') {
       renderSonarTargets();
+      helperTargetStatus = '';
+      renderModeInfo();
       setStatus('sonar targets loaded');
       return;
     }
     if (helperSocket && (helperSocket.readyState === WebSocket.OPEN || helperSocket.readyState === WebSocket.CONNECTING)) {
       return;
     }
+    helperTargetStatus = 'connecting';
+    renderModeInfo();
     setStatus('connecting');
     helperSocket = new WebSocket(settings.endpoint || 'ws://127.0.0.1:41922');
     helperSocket.onopen = function () {
+      helperTargetStatus = 'requesting targets';
+      renderModeInfo();
       setStatus('requesting');
       helperSocket.send(JSON.stringify({ command: 'list_targets' }));
     };
@@ -228,11 +235,15 @@
         lastSnapshot.deviceStates = message.deviceStates || [];
         lastSnapshot.sessionStates = message.sessionStates || [];
         renderTargets(message);
+        helperTargetStatus = 'targets loaded';
+        renderModeInfo();
         setStatus('targets loaded');
         helperSocket.close();
       }
     };
     helperSocket.onerror = function () {
+      helperTargetStatus = 'helper offline';
+      renderModeInfo();
       setStatus('helper offline');
     };
     helperSocket.onclose = function () {
@@ -241,42 +252,76 @@
   }
 
   function renderTargets(message) {
-    var list = byId('targets');
+    var list = byId('target');
     list.innerHTML = '';
+    addOption(list, '', 'Select target');
     var values = settings.targetKind === 'session' ? message.sessionDetails || message.sessions || [] : message.deviceDetails || message.devices || [];
     values.forEach(function (value) {
-      var option = document.createElement('option');
-      option.value = typeof value === 'string' ? value : value.name;
-      if (typeof value !== 'string' && value.id) {
-        option.label = value.name + ' [' + value.id + ']';
-      }
-      list.appendChild(option);
+      var name = typeof value === 'string' ? value : value.name;
+      var id = typeof value === 'string' ? '' : value.id || '';
+      addOption(list, name, id ? name + ' [' + id + ']' : name, id);
     });
+    ensureSelectedOption(list, settings.target, settings.targetId);
+    list.value = settings.target || '';
+    byId('targetId').value = selectedTargetId();
+    var batteryList = byId('batteryName');
+    batteryList.innerHTML = '';
+    addOption(batteryList, '', 'Auto-detect');
     if (message.batteries && message.batteries.length) {
-      var batteryList = byId('batteries');
-      batteryList.innerHTML = '';
       message.batteries.forEach(function (item) {
-        var option = document.createElement('option');
-        option.value = item.name || item.target || 'Headset';
-        batteryList.appendChild(option);
+        var name = item.name || item.target || 'Headset';
+        addOption(batteryList, name, name);
       });
     }
+    ensureSelectedOption(batteryList, settings.batteryName, '');
+    batteryList.value = settings.batteryName || '';
   }
 
   function renderSonarTargets() {
-    var list = byId('targets');
+    var list = byId('target');
     list.innerHTML = '';
+    addOption(list, '', 'Select Sonar channel');
     SONAR_TARGETS.forEach(function (item) {
-      var option = document.createElement('option');
-      option.value = item.target;
-      option.label = item.label;
-      list.appendChild(option);
+      addOption(list, item.target, item.label);
     });
+    ensureSelectedOption(list, settings.target, settings.targetId);
+    list.value = settings.target || '';
+    byId('targetId').value = '';
+  }
+
+  function addOption(list, value, text, targetId) {
+    var option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    if (targetId) option.dataset.targetId = targetId;
+    list.appendChild(option);
+  }
+
+  function ensureSelectedOption(list, value, targetId) {
+    if (!list || !value) return;
+    var exists = Array.prototype.some.call(list.options, function (option) {
+      return option.value === value;
+    });
+    if (!exists) {
+      addOption(list, value, targetId ? value + ' [' + targetId + ']' : value, targetId);
+    }
+  }
+
+  function selectedTargetId() {
+    var list = byId('target');
+    var option = list && list.options[list.selectedIndex];
+    return option && option.dataset ? option.dataset.targetId || '' : byId('targetId').value.trim();
   }
 
   function applySettings(next) {
     settings = Object.assign({}, settings, next || {});
     applyActionDefaults();
+    if (isDirectSonarAction() || settings.targetKind === 'sonar') {
+      renderSonarTargets();
+    } else {
+      ensureSelectedOption(byId('target'), settings.target, settings.targetId);
+    }
+    ensureSelectedOption(byId('batteryName'), settings.batteryName, '');
     Object.keys(settings).forEach(function (key) {
       if (byId(key)) {
         if (byId(key).type === 'checkbox') {
@@ -288,8 +333,11 @@
     });
     renderPresetNames();
     renderEndpointStatus();
-    if (isDirectSonarAction() || settings.targetKind === 'sonar') {
-      renderSonarTargets();
+    byId('targetId').value = settings.targetId || '';
+    if (currentAction === 'local.streamdock.sonar.helper.volume' ||
+      currentAction === 'local.streamdock.sonar.micmute' ||
+      currentAction === 'local.streamdock.sonar.battery') {
+      refreshTargets();
     }
     applyVisibility();
   }
@@ -553,6 +601,14 @@
     ['endpoint', 'targetKind', 'target', 'targetId', 'titleLabel', 'volumeStep', 'minVolume', 'maxVolume', 'displayMode', 'batteryName', 'batteryWarnPercent'].forEach(function (id) {
       byId(id).addEventListener('input', update);
       byId(id).addEventListener('change', update);
+    });
+    byId('targetKind').addEventListener('change', function () {
+      settings.target = '';
+      settings.targetId = '';
+      byId('target').value = '';
+      byId('targetId').value = '';
+      update();
+      refreshTargets();
     });
     ['invertKnob', 'generatedImages'].forEach(function (id) {
       byId(id).addEventListener('change', update);

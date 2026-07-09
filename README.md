@@ -54,7 +54,10 @@ Package this repository root as the plugin directory, or copy these files into a
 
 For normal Sonar use, start with `Sonar Volume` or `Sonar Mute`, choose a channel in `Target`, and leave helper settings alone. The plugin intentionally does nothing when `Target` is empty, so it does not accidentally change the default system volume.
 
+`Target` is a select box. Sonar actions use the built-in Sonar channel list. Helper actions load Device/Session candidates from the helper and store the exact target ID internally, so there is no separate Target ID field in the UI.
+
 The Property Inspector shows a `Mode` row. `Direct Sonar API` means helper-free. `Uses bundled Windows helper` means the helper must be installed and reachable.
+If helper target loading fails, the `Mode` row shows `helper offline`. In that case install the release zip with `-InstallHelper`, or open the `Diagnostics` action and use `Refresh` to confirm whether the helper can return targets and battery candidates.
 
 `Targets` and `Settings` controls are only shown on the `Diagnostics` action. Regular actions only show the fields needed for that action.
 

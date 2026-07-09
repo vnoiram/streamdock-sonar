@@ -647,7 +647,11 @@ function connectHelper(settings) {
 function startBundledHelper(settings) {
   if (helperProcess) return;
   const helperPath = bundledHelperPath();
-  if (!helperPath) return;
+  if (!helperPath) {
+    helperState.lastError = 'helper exe not found';
+    logMessage('helper exe not found');
+    return;
+  }
   const prefix = websocketEndpointToHttpPrefix(settings.endpoint || DEFAULT_SETTINGS.endpoint);
   const args = prefix ? [`--prefix=${prefix}`] : [];
   helperProcess = spawn(helperPath, args, {
@@ -655,6 +659,22 @@ function startBundledHelper(settings) {
     detached: true,
     stdio: 'ignore',
     windowsHide: true
+  });
+  helperProcess.on('error', error => {
+    helperProcess = null;
+    helperState.connected = false;
+    helperState.lastError = `helper start failed: ${error && error.message || error}`;
+    logMessage(helperState.lastError);
+    refreshTitles();
+  });
+  helperProcess.on('exit', code => {
+    helperProcess = null;
+    if (code && code !== 0) {
+      helperState.connected = false;
+      helperState.lastError = `helper exited: ${code}`;
+      logMessage(helperState.lastError);
+      refreshTitles();
+    }
   });
   helperProcess.unref();
 }
