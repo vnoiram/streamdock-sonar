@@ -345,12 +345,22 @@ function escapeSvg(value) {
 }
 
 function sendTargetCommand(payload) {
+  if (payload.command !== 'subscribe') {
+    logMessage(`command ${payload.command || 'unknown'} kind=${payload.targetKind || ''} target=${payload.target || ''}`);
+  }
   if (String(payload.targetKind || '').toLowerCase() === 'sonar') {
     return sendSonarDirect(payload).catch(error => {
       sonarState.connected = false;
-      sonarState.lastError = 'direct failed: helper fallback';
       logMessage(`sonar direct failed: ${error && error.message || error}`);
-      return helperSend(sonarFallbackPayload(payload));
+      const fallback = sonarFallbackPayload(payload);
+      if (String(fallback.targetKind || '').toLowerCase() === 'sonar') {
+        sonarState.lastError = 'direct failed: no helper fallback';
+        logMessage(`sonar helper fallback unavailable target=${payload.target || ''}`);
+        return false;
+      }
+      sonarState.lastError = 'direct failed: helper fallback';
+      logMessage(`sonar helper fallback ${payload.target || ''} -> ${fallback.target || ''}`);
+      return helperSend(fallback);
     });
   }
   return Promise.resolve(helperSend(payload));
@@ -921,11 +931,12 @@ function handleMessage(event) {
     if (presetDialState[message.context] && presetDialState[message.context].timer) clearTimeout(presetDialState[message.context].timer);
     delete presetDialState[message.context];
     delete contexts[message.context];
-  } else if (message.event === 'keyDown' || message.event === 'keyUp') {
+  } else if (message.event === 'keyDown' || message.event === 'touchTap' || message.event === 'dialDown' || message.event === 'dialPress') {
     const lastKeyEvent = keyEventTimes[message.context] || 0;
     keyEventTimes[message.context] = Date.now();
     if (Date.now() - lastKeyEvent < 150) return;
     const action = contexts[message.context] && contexts[message.context].action;
+    logMessage(`input ${message.event} action=${action || 'unknown'}`);
     if (action === 'local.streamdock.sonar.volume' || action === 'local.streamdock.sonar.helper.volume') {
       refreshTitles();
     } else if (action === 'local.streamdock.sonar.battery') {
@@ -938,6 +949,7 @@ function handleMessage(event) {
     }
   } else if (message.event === 'dialRotate') {
     const ticks = Number(message.payload && (message.payload.ticks || message.payload.delta || message.payload.rotation)) || 0;
+    logMessage(`input dialRotate ticks=${ticks}`);
     if (settingsFor(message.context).presetDialMode === 'select' && presetNames(settingsFor(message.context)).length) {
       selectPresetByDial(message.context, ticks);
     } else {
