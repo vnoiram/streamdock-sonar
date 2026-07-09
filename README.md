@@ -69,6 +69,12 @@ Helper logs are written next to the helper executable when the plugin starts it:
 stream-dock-sonar.sdPlugin\helper\SonarAudioHelper.log
 ```
 
+The Node plugin also writes its own log:
+
+```text
+stream-dock-sonar.sdPlugin\plugin\streamdock-sonar-plugin.log
+```
+
 Build a distributable plugin folder:
 
 ```bash

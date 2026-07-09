@@ -38,6 +38,7 @@ const helperState = { connected: false, targets: {}, batteries: {}, lastError: '
 const sonarState = { url: '', connected: false, lastError: '', lastUpdatedAt: 0, retryAfter: 0, polls: {} };
 const presetDialState = {};
 const keyEventTimes = {};
+const pluginLogFile = path.join(__dirname, 'streamdock-sonar-plugin.log');
 
 let streamDock = null;
 let pluginUuid = '';
@@ -224,6 +225,12 @@ function showAlert(context) {
 }
 
 function logMessage(message) {
+  const line = `${new Date().toISOString()} ${message}`;
+  try {
+    fs.appendFileSync(pluginLogFile, line + '\n');
+  } catch {
+    // File logging is best-effort; keep Stream Dock logging available.
+  }
   sendToStreamDock({ event: 'logMessage', payload: { message: `[streamdock-sonar] ${message}` } });
 }
 
@@ -961,6 +968,8 @@ function handleMessage(event) {
 function main() {
   const args = parseArgs(process.argv);
   pluginUuid = args.uuid;
+  logMessage(`plugin starting log=${pluginLogFile}`);
+  logMessage(`plugin args port=${args.port || ''} uuid=${args.uuid || ''} registerEvent=${args.registerEvent || ''}`);
   streamDock = new SimpleWebSocket(`ws://127.0.0.1:${args.port}`).connect();
   streamDock.onopen = () => sendToStreamDock({ event: args.registerEvent, uuid: pluginUuid });
   streamDock.onmessage = handleMessage;
