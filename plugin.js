@@ -589,13 +589,21 @@
     };
   }
 
+  function needsHelper(settings, action) {
+    if (action === 'local.streamdock.sonar.battery') return true;
+    if (settings.displayMode === 'battery') return true;
+    return String(settings.targetKind || '').toLowerCase() !== 'sonar';
+  }
+
   function rememberContext(message) {
     contexts[message.context] = {
       action: message.action,
       settings: message.payload && message.payload.settings || {}
     };
     var settings = settingsFor(message.context);
-    connectHelper(settings);
+    if (needsHelper(settings, message.action)) {
+      connectHelper(settings);
+    }
     if (settings.target) {
       sendTargetCommand({ command: 'subscribe', targetKind: settings.targetKind, target: settings.target, targetId: settings.targetId, pollMs: clampPollMs(settings.pollMs) });
     }

@@ -48,12 +48,12 @@
     { target: 'streamer:streaming:aux', label: 'Stream Broadcast Aux' },
     { target: 'streamer:streaming:mic', label: 'Stream Broadcast Mic' }
   ];
-  var COMMON_FIELDS = ['endpoint', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings'];
-  var TARGET_FIELDS = ['targetKind', 'target', 'targetId', 'titleLabel', 'pollMs', 'generatedImages', 'refreshTargets'];
+  var COMMON_FIELDS = ['diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings'];
+  var TARGET_FIELDS = ['targetKind', 'target', 'titleLabel', 'pollMs', 'generatedImages', 'refreshTargets'];
   var ACTION_FIELDS = {
     'local.streamdock.sonar.control': TARGET_FIELDS.concat(['volumeStep', 'minVolume', 'maxVolume', 'invertKnob', 'presetJson', 'presetsJson', 'presetName', 'presetDialMode', 'presetApplyMode', 'presetApplyDelayMs', 'capturePreset', 'dryRunPreset']),
     'local.streamdock.sonar.micmute': TARGET_FIELDS,
-    'local.streamdock.sonar.battery': TARGET_FIELDS.concat(['displayMode', 'batteryName', 'batteryWarnPercent']),
+    'local.streamdock.sonar.battery': ['endpoint', 'batteryName', 'titleLabel', 'pollMs', 'generatedImages', 'batteryWarnPercent', 'refreshTargets'],
     'local.streamdock.sonar.diagnostics': ['diagnoseSettings', 'copyDiagnostics']
   };
 
@@ -80,9 +80,30 @@
     COMMON_FIELDS.concat(ACTION_FIELDS[currentAction] || []).forEach(function (id) {
       visible[id] = true;
     });
+    if (usesHelperEndpoint()) {
+      visible.endpoint = true;
+    }
+    if (usesHelperTargetId()) {
+      visible.targetId = true;
+    }
+    if (settings.targetKind === 'sonar') {
+      visible.capturePreset = false;
+    }
     Object.keys(settings).concat(['refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']).forEach(function (id) {
       setFieldVisible(id, !!visible[id]);
     });
+  }
+
+  function usesHelperEndpoint() {
+    return currentAction === 'local.streamdock.sonar.battery' ||
+      currentAction === 'local.streamdock.sonar.diagnostics' ||
+      settings.targetKind !== 'sonar';
+  }
+
+  function usesHelperTargetId() {
+    return currentAction !== 'local.streamdock.sonar.battery' &&
+      currentAction !== 'local.streamdock.sonar.diagnostics' &&
+      settings.targetKind !== 'sonar';
   }
 
   function update() {
@@ -115,6 +136,7 @@
     if (settings.targetKind === 'sonar') {
       renderSonarTargets();
     }
+    applyVisibility();
   }
 
   function setStatus(text) {
@@ -408,11 +430,15 @@
   function diagnoseSettings() {
     update();
     var issues = [];
-    if (!settings.endpoint) issues.push('missing endpoint');
-    if (!/^wss?:\/\//i.test(settings.endpoint)) issues.push('invalid endpoint');
-    if (!isLoopbackEndpoint(settings.endpoint)) issues.push('remote helper');
+    if (usesHelperEndpoint() && !settings.endpoint) issues.push('missing endpoint');
+    if (usesHelperEndpoint() && !/^wss?:\/\//i.test(settings.endpoint)) issues.push('invalid endpoint');
+    if (usesHelperEndpoint() && !isLoopbackEndpoint(settings.endpoint)) issues.push('remote helper');
     if (settings.targetKind === 'sonar' && settings.target && !isKnownSonarTarget(settings.target)) issues.push('unknown sonar target');
-    if (!settings.target && settings.displayMode !== 'battery' && !settings.presetsJson && !settings.presetJson) issues.push('missing target');
+    if (currentAction === 'local.streamdock.sonar.battery') {
+      if (!settings.batteryName && !settings.target) issues.push('battery target unset');
+    } else if (!settings.target && settings.displayMode !== 'battery' && !settings.presetsJson && !settings.presetJson) {
+      issues.push('missing target');
+    }
     if (Number(settings.maxVolume) < Number(settings.minVolume)) issues.push('volume range reversed');
     if (settings.displayMode === 'battery' && !settings.batteryName && !settings.target) issues.push('battery target unset');
     setStatus(issues.join(', ') || 'diagnostics ok');

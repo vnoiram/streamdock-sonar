@@ -6,7 +6,7 @@ The plugin runs as a Stream Dock Node.js plugin. It controls SteelSeries Sonar's
 
 ## Version
 
-Current version: `0.2.0`.
+Current version: `0.2.2`.
 
 Notable `0.2.0` updates:
 
@@ -77,9 +77,11 @@ Package this repository root as the plugin directory, or copy these files into a
 
 Configure a target in the Property Inspector before use. The plugin intentionally does nothing when `Target` is empty, so it does not accidentally change the default system volume.
 
+For helper-free operation, set `Target kind` to `Sonar API` and choose one of the `classic:*` or `streamer:*` targets. In this mode the Endpoint and Target ID fields are not used. Device, Session, and Headset Battery actions still require the local helper.
+
 Use `Title label` to override long Windows/Sonar target names on the key. `Volume min` and `Volume max` clamp both relative knob changes and named preset `setVolume` values. `Invert knob` reverses dial direction. `Images` enables generated state images; `Battery warn` controls when battery images switch to the warning color.
 
-Use the Property Inspector's `Refresh` button to ask the helper for current output devices and audio sessions. The returned names populate the target autocomplete list.
+Use the Property Inspector's `Refresh` button to populate the target autocomplete list. For `Sonar API` targets this uses the built-in channel list and does not require the helper. For Device and Session targets it asks the helper for current output devices and audio sessions.
 
 Build a distributable plugin folder:
 
@@ -103,7 +105,7 @@ npm run release:zip
 
 ## Helper
 
-The Windows helper lives in `helper/` and is a .NET Windows console app. Once installed into `.sdPlugin/helper/`, the Node plugin starts it automatically when the helper endpoint is needed.
+The Windows helper lives in `helper/` and is a .NET Windows console app. Once installed into `.sdPlugin/helper/`, the Node plugin starts it automatically when a Device, Session, or Headset Battery configuration needs the helper endpoint. Sonar API targets use SteelSeries GG Sonar's local REST API directly and do not start the helper unless direct control fails and a virtual-device fallback is available.
 Release zips include the published helper as a sidecar `helper/` directory. To install that helper into the plugin, run:
 
 ```powershell
