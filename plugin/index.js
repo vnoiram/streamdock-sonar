@@ -226,7 +226,29 @@ function logMessage(message) {
 }
 
 function settingsFor(context) {
-  return Object.assign({}, DEFAULT_SETTINGS, contexts[context] && contexts[context].settings || {});
+  const action = contexts[context] && contexts[context].action;
+  return normalizeSettingsForAction(Object.assign({}, DEFAULT_SETTINGS, contexts[context] && contexts[context].settings || {}), action);
+}
+
+function normalizeSettingsForAction(settings, action) {
+  const normalized = Object.assign({}, settings);
+  if (isDirectSonarAction(action)) {
+    normalized.targetKind = 'sonar';
+  }
+  if (action === 'local.streamdock.sonar.profile') {
+    normalized.presetDialMode = 'select';
+    normalized.presetApplyMode = normalized.presetApplyMode || 'press';
+  }
+  if (action === 'local.streamdock.sonar.helper.volume' && String(normalized.targetKind || '').toLowerCase() === 'sonar') {
+    normalized.targetKind = 'device';
+  }
+  return normalized;
+}
+
+function isDirectSonarAction(action) {
+  return action === 'local.streamdock.sonar.volume' ||
+    action === 'local.streamdock.sonar.mute' ||
+    action === 'local.streamdock.sonar.profile';
 }
 
 function targetState(settings) {
@@ -246,10 +268,14 @@ function isTargetOnline(settings) {
 
 function titleFor(context) {
   const settings = settingsFor(context);
-  if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.diagnostics') {
+  const action = contexts[context] && contexts[context].action;
+  if (action === 'local.streamdock.sonar.diagnostics') {
     return `Sonar\n${sonarState.connected ? 'direct' : helperState.connected ? 'helper' : 'offline'}\n${sonarState.lastError || helperState.lastError || settings.endpoint}`;
   }
-  if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
+  if (action === 'local.streamdock.sonar.profile') {
+    return `Profile\n${settings.presetName || 'unset'}`;
+  }
+  if (action === 'local.streamdock.sonar.battery' || settings.displayMode === 'battery') {
     const battery = helperState.batteries[settings.batteryName || settings.target] || helperState.batteries.default || {};
     if (!helperState.connected) return cachedTitle('Battery\noffline');
     if (typeof battery.percent === 'number') {
@@ -258,8 +284,8 @@ function titleFor(context) {
     return 'Battery\nunknown';
   }
   if (!settings.target) return 'Sonar\nunset';
-  if ((contexts[context] && contexts[context].action) === 'local.streamdock.sonar.micmute') {
-    return `Mic\n${targetState(settings).muted ? 'muted' : 'ready'}`;
+  if (action === 'local.streamdock.sonar.micmute' || action === 'local.streamdock.sonar.mute') {
+    return `Mute\n${targetState(settings).muted ? 'muted' : 'ready'}`;
   }
   if (!isTargetOnline(settings)) return cachedTitle('Sonar\noffline');
   const current = targetState(settings);
@@ -656,7 +682,10 @@ function websocketEndpointToHttpPrefix(endpoint) {
 
 function needsHelper(settings, action) {
   if (action === 'local.streamdock.sonar.battery') return true;
+  if (action === 'local.streamdock.sonar.helper.volume') return true;
+  if (action === 'local.streamdock.sonar.micmute') return true;
   if (settings.displayMode === 'battery') return true;
+  if (isDirectSonarAction(action)) return false;
   return String(settings.targetKind || '').toLowerCase() !== 'sonar';
 }
 
@@ -843,7 +872,10 @@ function handleMessage(event) {
     const lastKeyEvent = keyEventTimes[message.context] || 0;
     keyEventTimes[message.context] = Date.now();
     if (Date.now() - lastKeyEvent < 150) return;
-    if (contexts[message.context] && contexts[message.context].action === 'local.streamdock.sonar.battery') {
+    const action = contexts[message.context] && contexts[message.context].action;
+    if (action === 'local.streamdock.sonar.volume' || action === 'local.streamdock.sonar.helper.volume') {
+      refreshTitles();
+    } else if (action === 'local.streamdock.sonar.battery') {
       const batterySettings = settingsFor(message.context);
       helperSend({ command: 'battery', target: batterySettings.batteryName || batterySettings.target, pollMs: Number(batterySettings.pollMs) || 1000 });
     } else if (settingsFor(message.context).presetDialMode === 'select' && settingsFor(message.context).presetApplyMode === 'rotateEnd') {

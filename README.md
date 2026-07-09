@@ -8,39 +8,16 @@ The plugin runs as a Stream Dock Node.js plugin. It controls SteelSeries Sonar's
 
 Current version: `0.2.2`.
 
-Notable `0.2.0` updates:
+## Actions
 
-- Added `npm run clean` for removing generated `dist/` output.
-- Added `npm run release:zip` as the standard release entry point.
-- Release zips now include the manifest version in the filename.
-
-Initial actions:
-
-- Select target channel or virtual device
-- Adjust volume by configured knob step
-- Toggle mute
-- Reflect mute and unavailable states
-- Refresh target autocomplete from the helper
-- Export/import action settings
-- Apply multi-target preset JSON
-- Apply named mixer presets with absolute volume and mute values
-- Select named presets with a knob and apply them on press, after rotation stops, or both
-- Capture current helper-reported target volume/mute states into a named preset
-- Dry-run named or JSON presets from the Property Inspector without changing volume
-- Property Inspector `Diagnose` and `Reset` for endpoint, target, battery, and volume-range checks
-- Common backup export format, Property Inspector diagnostic log copy, and cached state age on offline volume/battery titles
-- Copy/paste action settings between keys from the Property Inspector
-- Mic mute action
-- Per-target poll interval
-- Optional exact device/session ID matching
-- Direct Sonar REST API channel control with helper fallback
-- Bundled helper auto-start when installed from a release zip with `-InstallHelper`
-- Headset battery display when SteelSeries GG exposes battery data locally
-- Optional title alias for cleaner key labels
-- Generated key images for volume, mute, missing target, and headset battery states
-- Invert knob direction
-- Min/max volume clamp for relative and preset volume changes
-- Low-battery warning threshold for generated battery images
+- `Sonar Volume`: adjusts one SteelSeries Sonar mixer channel such as `classic:game` or `streamer:monitoring:chat`. This uses the Sonar local API directly and does not require the helper.
+- `Sonar Mute`: toggles mute for one Sonar mixer channel. This uses the Sonar local API directly and does not require the helper.
+- `Sonar Profile`: applies a named mixer profile made from one or more channel volume/mute entries. This does not require the helper when the profile entries are Sonar API targets.
+- `Windows Volume (Helper)`: adjusts a Windows output device or app session. This requires the bundled helper.
+- `Windows/Mic Mute (Helper)`: toggles mute for a Windows microphone, device, or session. This requires the bundled helper.
+- `Headset Battery (Helper)`: shows headset battery data when SteelSeries GG exposes it locally. This requires the bundled helper.
+- `Diagnostics`: helper target refresh, setting import/export, reset, and diagnostic log copy live here.
+- `Advanced Control`: legacy mixed action for older setups.
 
 Default helper endpoint:
 
@@ -75,13 +52,13 @@ Package this repository root as the plugin directory, or copy these files into a
 - `property-inspector.css`
 - `icons/`
 
-Configure a target in the Property Inspector before use. The plugin intentionally does nothing when `Target` is empty, so it does not accidentally change the default system volume.
+For normal Sonar use, start with `Sonar Volume` or `Sonar Mute`, choose a channel in `Target`, and leave helper settings alone. The plugin intentionally does nothing when `Target` is empty, so it does not accidentally change the default system volume.
 
-For helper-free operation, set `Target kind` to `Sonar API` and choose one of the `classic:*` or `streamer:*` targets. In this mode the Endpoint and Target ID fields are not used. Device, Session, and Headset Battery actions still require the local helper.
+The Property Inspector shows a `Mode` row. `Direct Sonar API` means helper-free. `Uses bundled Windows helper` means the helper must be installed and reachable.
 
-Use `Title label` to override long Windows/Sonar target names on the key. `Volume min` and `Volume max` clamp both relative knob changes and named preset `setVolume` values. `Invert knob` reverses dial direction. `Images` enables generated state images; `Battery warn` controls when battery images switch to the warning color.
+`Targets` and `Settings` controls are only shown on the `Diagnostics` action. Regular actions only show the fields needed for that action.
 
-Use the Property Inspector's `Refresh` button to populate the target autocomplete list. For `Sonar API` targets this uses the built-in channel list and does not require the helper. For Device and Session targets it asks the helper for current output devices and audio sessions.
+Use `Title label` to override long target names on the key. `Volume min` and `Volume max` clamp both relative knob changes and profile `setVolume` values. `Invert knob` reverses dial direction. `Images` enables generated state images; `Battery warn` controls when battery images switch to the warning color.
 
 Build a distributable plugin folder:
 
@@ -128,7 +105,7 @@ Release zips include the published helper as a sidecar `helper/` directory. To i
 
 ## Sonar API Targets
 
-Set `Target kind` to `Sonar API` to control Sonar's internal mixer channels instead of Windows device/session volume. Use `Refresh` in the Property Inspector to populate known targets.
+Use `Sonar Volume`, `Sonar Mute`, or `Sonar Profile` to control Sonar's internal mixer channels instead of Windows device/session volume. The target list is built into the Property Inspector; no helper refresh is needed for these actions.
 
 Target examples:
 
@@ -186,16 +163,23 @@ It also supports `{ "command": "list_targets" }`, returning current device/sessi
 
 Battery display uses the helper command `{ "command": "battery", "target": "headset name" }`. The helper first checks `STREAMDOCK_SONAR_BATTERY_JSON`, then tries SteelSeries GG/Engine `coreProps.json` endpoints and scans returned JSON for battery-like fields. SteelSeries endpoints are accepted only when they resolve to localhost/loopback, including values supplied through `STEELSERIES_GG_ENDPOINT`. If GG does not expose the headset battery through those local files or endpoints, the action shows `Battery unknown`.
 
-Preset JSON example:
+Sonar Profile example:
 
 ```json
-[
-  { "targetKind": "device", "target": "Sonar - Gaming", "amount": 2 },
-  { "targetKind": "device", "target": "Sonar - Chat", "amount": -2 }
-]
+{
+  "Streaming": [
+    { "target": "classic:game", "setVolume": 70 },
+    { "target": "classic:chat", "setVolume": 45, "mute": false },
+    { "target": "classic:media", "setVolume": 20 }
+  ],
+  "Quiet": [
+    { "target": "classic:game", "setVolume": 35 },
+    { "target": "classic:chat", "mute": true }
+  ]
+}
 ```
 
-Named preset example:
+Helper-backed advanced preset example:
 
 ```json
 {
@@ -211,7 +195,7 @@ Named preset example:
 }
 ```
 
-Set `Preset name` to one of the object keys. Pressing the key applies `setVolume` and `mute` values; rotating a knob still uses `amount`/`volumeStep` for relative changes.
+Set `Preset name` to one of the object keys. Pressing the key applies `setVolume` and `mute` values.
 
 For knob-driven preset selection, set `Preset dial` to `Select preset`. Rotation cycles through the names in `Presets`, and `Apply` controls when the selected preset is sent:
 
@@ -219,7 +203,7 @@ For knob-driven preset selection, set `Preset dial` to `Select preset`. Rotation
 - `Rotate stop only`: apply only after knob rotation stops.
 - `Press only`: rotate to preview/select, then press to apply.
 
-Use `Refresh` to load current helper target states, set `Preset name`, then press `Capture` to add or overwrite that named preset in `Presets`. The capture uses the selected `Target kind`: `Device` captures current device volumes/mutes, and `Session` captures current audio-session volumes/mutes.
+Use the `Diagnostics` action to refresh helper targets, capture helper-reported Windows target states, reset settings, or export/import raw settings.
 
 ## Target Examples
 

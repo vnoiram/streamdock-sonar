@@ -48,13 +48,18 @@
     { target: 'streamer:streaming:aux', label: 'Stream Broadcast Aux' },
     { target: 'streamer:streaming:mic', label: 'Stream Broadcast Mic' }
   ];
-  var COMMON_FIELDS = ['diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings'];
-  var TARGET_FIELDS = ['targetKind', 'target', 'titleLabel', 'pollMs', 'generatedImages', 'refreshTargets'];
+  var COMMON_FIELDS = ['modeInfo'];
+  var TARGET_FIELDS = ['targetKind', 'target', 'titleLabel', 'pollMs', 'generatedImages'];
+  var SONAR_TARGET_FIELDS = ['target', 'titleLabel', 'pollMs', 'generatedImages'];
   var ACTION_FIELDS = {
-    'local.streamdock.sonar.control': TARGET_FIELDS.concat(['volumeStep', 'minVolume', 'maxVolume', 'invertKnob', 'presetJson', 'presetsJson', 'presetName', 'presetDialMode', 'presetApplyMode', 'presetApplyDelayMs', 'capturePreset', 'dryRunPreset']),
-    'local.streamdock.sonar.micmute': TARGET_FIELDS,
-    'local.streamdock.sonar.battery': ['endpoint', 'batteryName', 'titleLabel', 'pollMs', 'generatedImages', 'batteryWarnPercent', 'refreshTargets'],
-    'local.streamdock.sonar.diagnostics': ['diagnoseSettings', 'copyDiagnostics']
+    'local.streamdock.sonar.control': TARGET_FIELDS.concat(['volumeStep', 'minVolume', 'maxVolume', 'invertKnob', 'presetJson', 'presetsJson', 'presetName', 'presetDialMode', 'presetApplyMode', 'presetApplyDelayMs']),
+    'local.streamdock.sonar.volume': SONAR_TARGET_FIELDS.concat(['volumeStep', 'minVolume', 'maxVolume', 'invertKnob']),
+    'local.streamdock.sonar.mute': SONAR_TARGET_FIELDS,
+    'local.streamdock.sonar.profile': ['titleLabel', 'presetsJson', 'presetName', 'presetApplyMode', 'presetApplyDelayMs', 'minVolume', 'maxVolume', 'generatedImages'],
+    'local.streamdock.sonar.helper.volume': TARGET_FIELDS.concat(['endpoint', 'targetId', 'volumeStep', 'minVolume', 'maxVolume', 'invertKnob']),
+    'local.streamdock.sonar.micmute': TARGET_FIELDS.concat(['endpoint', 'targetId']),
+    'local.streamdock.sonar.battery': ['endpoint', 'batteryName', 'titleLabel', 'pollMs', 'generatedImages', 'batteryWarnPercent'],
+    'local.streamdock.sonar.diagnostics': ['endpoint', 'targetKind', 'target', 'targetId', 'batteryName', 'refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']
   };
 
   function byId(id) {
@@ -86,23 +91,39 @@
     if (usesHelperTargetId()) {
       visible.targetId = true;
     }
-    if (settings.targetKind === 'sonar') {
+    if (isDirectSonarAction() || settings.targetKind === 'sonar') {
       visible.capturePreset = false;
     }
-    Object.keys(settings).concat(['refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']).forEach(function (id) {
+    if (isDirectSonarAction()) {
+      visible.targetKind = false;
+      visible.targetId = false;
+      visible.endpoint = false;
+    }
+    Object.keys(settings).concat(['modeInfo', 'refreshTargets', 'capturePreset', 'dryRunPreset', 'diagnoseSettings', 'resetSettings', 'copySettings', 'pasteSettings', 'exportSettings', 'copyDiagnostics', 'importSettings']).forEach(function (id) {
       setFieldVisible(id, !!visible[id]);
     });
+    renderModeInfo();
+  }
+
+  function isDirectSonarAction() {
+    return currentAction === 'local.streamdock.sonar.volume' ||
+      currentAction === 'local.streamdock.sonar.mute' ||
+      currentAction === 'local.streamdock.sonar.profile';
   }
 
   function usesHelperEndpoint() {
     return currentAction === 'local.streamdock.sonar.battery' ||
       currentAction === 'local.streamdock.sonar.diagnostics' ||
+      currentAction === 'local.streamdock.sonar.helper.volume' ||
       settings.targetKind !== 'sonar';
   }
 
   function usesHelperTargetId() {
     return currentAction !== 'local.streamdock.sonar.battery' &&
       currentAction !== 'local.streamdock.sonar.diagnostics' &&
+      currentAction !== 'local.streamdock.sonar.volume' &&
+      currentAction !== 'local.streamdock.sonar.mute' &&
+      currentAction !== 'local.streamdock.sonar.profile' &&
       settings.targetKind !== 'sonar';
   }
 
@@ -111,7 +132,7 @@
       return;
     }
     settings.endpoint = byId('endpoint').value.trim();
-    settings.targetKind = byId('targetKind').value;
+    settings.targetKind = isDirectSonarAction() ? 'sonar' : byId('targetKind').value;
     settings.target = byId('target').value.trim();
     settings.targetId = byId('targetId').value.trim();
     settings.titleLabel = byId('titleLabel').value.trim();
@@ -133,7 +154,7 @@
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
     renderPresetNames();
     renderEndpointStatus();
-    if (settings.targetKind === 'sonar') {
+    if (isDirectSonarAction() || settings.targetKind === 'sonar') {
       renderSonarTargets();
     }
     applyVisibility();
@@ -157,6 +178,24 @@
       return;
     }
     status.textContent = isLoopbackEndpoint(endpoint) ? 'localhost helper' : 'remote helper: expose only on trusted networks';
+  }
+
+  function renderModeInfo() {
+    var info = byId('modeInfo');
+    if (!info) return;
+    if (isDirectSonarAction()) {
+      info.textContent = 'Direct Sonar API: helper not required';
+    } else if (currentAction === 'local.streamdock.sonar.battery' ||
+      currentAction === 'local.streamdock.sonar.helper.volume' ||
+      currentAction === 'local.streamdock.sonar.micmute') {
+      info.textContent = 'Uses bundled Windows helper';
+    } else if (currentAction === 'local.streamdock.sonar.diagnostics') {
+      info.textContent = 'Diagnostics: helper tools and logs';
+    } else if (settings.targetKind === 'sonar') {
+      info.textContent = 'Direct Sonar API with helper fallback';
+    } else {
+      info.textContent = 'Advanced helper-backed Windows target';
+    }
   }
 
   function isLoopbackEndpoint(endpoint) {
@@ -237,6 +276,7 @@
 
   function applySettings(next) {
     settings = Object.assign({}, settings, next || {});
+    applyActionDefaults();
     Object.keys(settings).forEach(function (key) {
       if (byId(key)) {
         if (byId(key).type === 'checkbox') {
@@ -248,8 +288,22 @@
     });
     renderPresetNames();
     renderEndpointStatus();
-    if (settings.targetKind === 'sonar') {
+    if (isDirectSonarAction() || settings.targetKind === 'sonar') {
       renderSonarTargets();
+    }
+    applyVisibility();
+  }
+
+  function applyActionDefaults() {
+    if (isDirectSonarAction()) {
+      settings.targetKind = 'sonar';
+    }
+    if (currentAction === 'local.streamdock.sonar.profile') {
+      settings.presetDialMode = 'select';
+      settings.presetApplyMode = settings.presetApplyMode || 'press';
+    }
+    if (currentAction === 'local.streamdock.sonar.helper.volume' && settings.targetKind === 'sonar') {
+      settings.targetKind = 'device';
     }
   }
 

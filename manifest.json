@@ -24,17 +24,53 @@
   "Actions": [
     {
       "UUID": "local.streamdock.sonar.control",
-      "Name": "Sonar Control",
-      "Tooltip": "Adjust or mute a configured Sonar API channel, virtual device, or Windows audio session.",
+      "Name": "Advanced Control",
+      "Tooltip": "Advanced/legacy action for direct Sonar API targets or helper-backed Windows device/session targets.",
       "Controllers": ["Keypad", "Knob"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Sonar", "Image": "icons/plugin" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
+      "UUID": "local.streamdock.sonar.volume",
+      "Name": "Sonar Volume",
+      "Tooltip": "Adjust a SteelSeries Sonar mixer channel directly. No helper required.",
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Volume", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.mute",
+      "Name": "Sonar Mute",
+      "Tooltip": "Toggle mute for a SteelSeries Sonar mixer channel directly. No helper required.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Mute", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.profile",
+      "Name": "Sonar Profile",
+      "Tooltip": "Apply a named Sonar mixer profile made from one or more channel volume/mute entries.",
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Profile", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.helper.volume",
+      "Name": "Windows Volume (Helper)",
+      "Tooltip": "Adjust a Windows device or app session through the bundled helper.",
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Win Vol", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
       "UUID": "local.streamdock.sonar.micmute",
-      "Name": "Mic Mute",
-      "Tooltip": "Toggle mute for a configured microphone session or device.",
+      "Name": "Windows/Mic Mute (Helper)",
+      "Tooltip": "Toggle mute for a Windows microphone/session/device through the bundled helper.",
       "Controllers": ["Keypad"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Mic", "Image": "icons/plugin" }],
@@ -42,8 +78,8 @@
     },
     {
       "UUID": "local.streamdock.sonar.battery",
-      "Name": "Headset Battery",
-      "Tooltip": "Show SteelSeries headset battery percentage when GG exposes it locally.",
+      "Name": "Headset Battery (Helper)",
+      "Tooltip": "Show SteelSeries headset battery percentage through the bundled helper when GG exposes it locally.",
       "Controllers": ["Keypad"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Battery", "Image": "icons/plugin" }],
