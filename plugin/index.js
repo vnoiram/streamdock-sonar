@@ -412,6 +412,7 @@ function publishSonarState(target, state) {
 
 async function getSonarTargetState(target) {
   const parsed = parseSonarTarget(target);
+  logMessage(`sonar state target=${target} mode=${parsed.mode} mix=${parsed.mix || '-'} channel=${parsed.channel} apiChannel=${parsed.apiChannel}`);
   const settings = await sonarRequest(parsed.mode === 'classic' ? '/VolumeSettings/classic' : '/VolumeSettings/streamer', 'GET');
   let node;
   if (parsed.channel === 'master') {
@@ -427,6 +428,7 @@ async function getSonarTargetState(target) {
 function setSonarVolume(target, value) {
   const parsed = parseSonarTarget(target);
   const scalar = Math.max(0, Math.min(1, Number(value) / 100)).toFixed(2);
+  logMessage(`sonar set volume target=${target} scalar=${scalar}`);
   if (parsed.mode === 'classic') return sonarRequest(`/VolumeSettings/classic/${parsed.httpChannel}/Volume/${scalar}`, 'PUT');
   return sonarRequest(`/VolumeSettings/streamer/${parsed.mix}/${parsed.httpChannel}/volume/${scalar}`, 'PUT');
 }
@@ -434,6 +436,7 @@ function setSonarVolume(target, value) {
 function setSonarMute(target, muted) {
   const parsed = parseSonarTarget(target);
   const value = muted ? 'true' : 'false';
+  logMessage(`sonar set mute target=${target} muted=${value}`);
   if (parsed.mode === 'classic') return sonarRequest(`/VolumeSettings/classic/${parsed.httpChannel}/Mute/${value}`, 'PUT');
   return sonarRequest(`/VolumeSettings/streamer/${parsed.mix}/${parsed.httpChannel}/isMuted/${value}`, 'PUT');
 }
@@ -474,12 +477,14 @@ async function sonarRequest(route, method) {
     rejectUnauthorized: false,
     timeout: 2500
   };
+  logMessage(`sonar request ${method} ${parsed.protocol}//${parsed.hostname}:${parsed.port}${options.path}`);
   return new Promise((resolve, reject) => {
     const request = client.request(options, response => {
       let body = '';
       response.setEncoding('utf8');
       response.on('data', chunk => { body += chunk; });
       response.on('end', () => {
+        logMessage(`sonar response ${method} ${options.path} status=${response.statusCode} bytes=${body.length}`);
         if (response.statusCode < 200 || response.statusCode >= 300) {
           reject(new Error(`Sonar HTTP ${response.statusCode}`));
           return;
@@ -491,18 +496,28 @@ async function sonarRequest(route, method) {
         resolve(parseJson(body, {}));
       });
     });
-    request.on('error', reject);
-    request.on('timeout', () => request.destroy(new Error('Sonar request timeout')));
+    request.on('error', error => {
+      logMessage(`sonar request error ${method} ${options.path}: ${error && error.message || error}`);
+      reject(error);
+    });
+    request.on('timeout', () => {
+      logMessage(`sonar request timeout ${method} ${options.path}`);
+      request.destroy(new Error('Sonar request timeout'));
+    });
     request.end();
   });
 }
 
 async function getSonarUrl() {
-  if (sonarState.url) return sonarState.url;
+  if (sonarState.url) {
+    return sonarState.url;
+  }
   const endpoints = Array.from(new Set([...candidateSubAppsUrls(), ...SONAR_SUBAPPS_URLS]));
+  logMessage(`sonar discovery endpoints=${endpoints.length}`);
   let lastError = null;
   for (const endpoint of endpoints) {
     try {
+      logMessage(`sonar discovery request ${endpoint}`);
       const payload = await requestJson(endpoint, { rejectUnauthorized: false });
       const sonar = payload && payload.subApps && payload.subApps.sonar;
       if (!sonar || sonar.isEnabled === false || sonar.isReady === false || sonar.isRunning === false) {
@@ -511,9 +526,11 @@ async function getSonarUrl() {
       const url = sonar.metadata && sonar.metadata.webServerAddress;
       if (!isLoopbackHttpUrl(url)) throw new Error('Sonar URL is not loopback');
       sonarState.url = url;
+      logMessage(`sonar discovery ok url=${url}`);
       return url;
     } catch (error) {
       lastError = error;
+      logMessage(`sonar discovery failed ${endpoint}: ${error && error.message || error}`);
     }
   }
   throw lastError || new Error('Sonar endpoint not found');
@@ -523,13 +540,20 @@ function candidateSubAppsUrls() {
   const urls = [];
   for (const file of candidateCorePropsFiles()) {
     try {
-      if (!fs.existsSync(file)) continue;
+      if (!fs.existsSync(file)) {
+        logMessage(`sonar coreProps missing ${file}`);
+        continue;
+      }
       const props = JSON.parse(fs.readFileSync(file, 'utf8'));
       for (const key of ['ggEncryptedAddress', 'encryptedAddress', 'address']) {
-        if (props[key]) urls.push(`${String(props[key]).startsWith('http') ? props[key] : `https://${props[key]}`}/subApps`);
+        if (props[key]) {
+          const url = `${String(props[key]).startsWith('http') ? props[key] : `https://${props[key]}`}/subApps`;
+          logMessage(`sonar coreProps ${file} ${key} -> ${url}`);
+          urls.push(url);
+        }
       }
-    } catch {
-      // Try the next known coreProps location.
+    } catch (error) {
+      logMessage(`sonar coreProps read failed ${file}: ${error && error.message || error}`);
     }
   }
   return urls;
@@ -548,12 +572,14 @@ function candidateCorePropsFiles() {
 function requestJson(url, options) {
   const parsed = new URL(url);
   const client = parsed.protocol === 'https:' ? https : http;
+  const requestPath = parsed.pathname + parsed.search;
+  logMessage(`http request GET ${parsed.protocol}//${parsed.hostname}:${parsed.port}${requestPath}`);
   return new Promise((resolve, reject) => {
     const request = client.request({
       method: 'GET',
       hostname: parsed.hostname,
       port: parsed.port,
-      path: parsed.pathname + parsed.search,
+      path: requestPath,
       rejectUnauthorized: options && options.rejectUnauthorized === false ? false : true,
       timeout: 2500
     }, response => {
@@ -561,6 +587,7 @@ function requestJson(url, options) {
       response.setEncoding('utf8');
       response.on('data', chunk => { body += chunk; });
       response.on('end', () => {
+        logMessage(`http response GET ${requestPath} status=${response.statusCode} bytes=${body.length}`);
         if (response.statusCode < 200 || response.statusCode >= 300) {
           reject(new Error(`HTTP ${response.statusCode}`));
           return;
@@ -568,8 +595,14 @@ function requestJson(url, options) {
         resolve(parseJson(body, {}));
       });
     });
-    request.on('error', reject);
-    request.on('timeout', () => request.destroy(new Error('request timeout')));
+    request.on('error', error => {
+      logMessage(`http request error GET ${requestPath}: ${error && error.message || error}`);
+      reject(error);
+    });
+    request.on('timeout', () => {
+      logMessage(`http request timeout GET ${requestPath}`);
+      request.destroy(new Error('request timeout'));
+    });
     request.end();
   });
 }
