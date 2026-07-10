@@ -8,7 +8,7 @@ namespace StreamDockSonar.Actions;
     Name = "Sonar Rotate Output",
     Icon = "icons/plugin",
     Tooltip = "Rotate a SteelSeries Sonar output target to the next active output device.",
-    Controllers = ["Keypad"],
+    Controllers = ["Keypad", "Knob"],
     PropertyInspectorPath = "property-inspector.html"
 )]
 [SDActionState(Image = "icons/plugin", Title = "Rotate")]
@@ -17,6 +17,8 @@ public sealed class SonarRotateOutputDeviceHandler(
     string context,
     Dictionary<string, object>? settings) : SonarActionHandler(connection, context, settings)
 {
+    private int _pendingTicks;
+
     public override Task OnWillAppearAsync()
     {
         Log.Info($"RotateOutput willAppear context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
@@ -26,11 +28,29 @@ public sealed class SonarRotateOutputDeviceHandler(
     public override async Task OnKeyDownAsync()
     {
         Log.Info($"RotateOutput keyDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
+        await RotateAsync(1);
+    }
+
+    public override async Task OnDialRotateAsync(int ticks, bool pressed)
+    {
+        var adjustedTicks = SonarSettings.InvertKnob ? -ticks : ticks;
+        _pendingTicks += adjustedTicks;
+        if (Math.Abs(_pendingTicks) < SonarSettings.RotateTicks) return;
+
+        var direction = _pendingTicks < 0 ? -1 : 1;
+        _pendingTicks = 0;
+        Log.Info($"RotateOutput dialRotate context={Context} direction={direction}");
+        await RotateAsync(direction);
+    }
+
+    private async Task RotateAsync(int direction)
+    {
         var result = await Client.RotateOutputDeviceAsync(
             SonarSettings.TargetRole,
             SonarSettings.StreamMix,
             SonarSettings.RotationMode,
             SonarSettings.AllowExcludedDevices,
+            direction,
             DisposeToken);
         if (!result.Success)
         {

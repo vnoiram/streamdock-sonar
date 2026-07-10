@@ -51,6 +51,12 @@ public sealed class SonarVolumeHandler(
         await ApplyDeltaAsync(SonarSettings.Step);
     }
 
+    public override async Task OnDialDownAsync()
+    {
+        Log.Info($"Volume dialDown mute context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
+        await ToggleMuteAsync();
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing) _debounceTimer?.Dispose();
@@ -85,6 +91,28 @@ public sealed class SonarVolumeHandler(
             }
 
             await ShowStateAsync(new SonarChannelState(next, state.Muted));
+            await RefreshSharedStateAsync();
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorAsync(ex.Message);
+        }
+    }
+
+    private async Task ToggleMuteAsync()
+    {
+        try
+        {
+            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
+            var nextMuted = !state.Muted;
+            var result = await Client.SetMuteAsync(SonarSettings.TargetRole, nextMuted, SonarSettings.StreamMix, DisposeToken);
+            if (!result.Success)
+            {
+                await ShowErrorAsync(result.ErrorSummary ?? "Sonar mute update failed");
+                return;
+            }
+
+            await ShowStateAsync(state with { Muted = nextMuted });
             await RefreshSharedStateAsync();
         }
         catch (Exception ex)

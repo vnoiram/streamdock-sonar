@@ -6,6 +6,7 @@
   var currentAction = '';
   var outputDevices = [];
   var profiles = [];
+  var deviceRequestTimer = null;
   var settings = {
     targetRole: 'game',
     streamMix: 'monitoring',
@@ -15,6 +16,7 @@
     deviceId: '',
     targetProfileId: '',
     rotationMode: 'target',
+    rotateTicks: 3,
     step: 2,
     titleLabel: '',
     allowExcludedDevices: false,
@@ -71,7 +73,8 @@
     normalized.deviceId = normalized.deviceId || '';
     normalized.targetProfileId = normalized.targetProfileId || '';
     normalized.rotationMode = normalizeRotationMode(normalized.rotationMode);
-    normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
+    normalized.rotateTicks = Math.max(1, Math.min(20, Number(normalized.rotateTicks) || 3));
+    normalized.step = normalizeStep(normalized.step || normalized.volumeStep || 2);
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.allowExcludedDevices = normalized.allowExcludedDevices === true || normalized.allowExcludedDevices === 'true';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
@@ -120,6 +123,12 @@
     return mode === 'all-auto-detect' || mode === 'all-classic' || mode === 'all-streaming' ? mode : 'target';
   }
 
+  function normalizeStep(value) {
+    var step = Number(value) || 2;
+    step = Math.max(-20, Math.min(20, step));
+    return step === 0 ? 1 : step;
+  }
+
   function isOverviewAction() {
     return currentAction === 'local.streamdock.sonar.overview';
   }
@@ -164,6 +173,7 @@
     byId('chatMixStep').value = settings.chatMixStep;
     byId('deviceId').value = settings.deviceId;
     byId('rotationMode').value = settings.rotationMode;
+    byId('rotateTicks').value = settings.rotateTicks;
     renderDeviceOptions();
     renderProfileOptions();
     byId('titleLabel').value = settings.titleLabel;
@@ -229,7 +239,8 @@
     settings.deviceId = byId('deviceId').value.trim();
     settings.targetProfileId = byId('targetProfileId').value;
     settings.rotationMode = normalizeRotationMode(byId('rotationMode').value);
-    settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
+    settings.rotateTicks = Math.max(1, Math.min(20, Number(byId('rotateTicks').value) || 3));
+    settings.step = normalizeStep(byId('step').value);
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.allowExcludedDevices = byId('allowExcludedDevices').checked;
     settings.invertKnob = byId('invertKnob').checked;
@@ -272,6 +283,12 @@
       payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render' }
     }));
     byId('deviceStatus').textContent = 'loading';
+    if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
+    deviceRequestTimer = setTimeout(function () {
+      if (byId('deviceStatus').textContent === 'loading') {
+        byId('deviceStatus').textContent = 'no response';
+      }
+    }, 10000);
   }
 
   function requestProfiles() {
@@ -291,6 +308,7 @@
       byId('status').textContent = payload.diagnostics && payload.diagnostics.mode ? 'ok' : 'error';
       byId('diagnosticsOutput').textContent = JSON.stringify(payload.diagnostics, null, 2);
     } else if (payload.type === 'devices') {
+      if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
       outputDevices = Array.isArray(payload.devices) ? payload.devices : [];
       byId('deviceStatus').textContent = outputDevices.length ? outputDevices.length + ' devices' : 'none';
       renderDeviceOptions();
@@ -301,7 +319,10 @@
       renderProfileOptions();
     } else if (payload.type === 'error') {
       byId('status').textContent = payload.message || 'error';
-      if (isDeviceAction()) byId('deviceStatus').textContent = payload.message || 'error';
+      if (isDeviceAction()) {
+        if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
+        byId('deviceStatus').textContent = payload.message || 'error';
+      }
       if (isProfileAction()) byId('profileStatus').textContent = payload.message || 'error';
     }
   }
@@ -343,7 +364,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode', 'allowExcludedDevices'].forEach(function (id) {
+    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode', 'rotateTicks', 'allowExcludedDevices'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

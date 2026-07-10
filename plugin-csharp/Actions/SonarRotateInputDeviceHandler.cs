@@ -8,7 +8,7 @@ namespace StreamDockSonar.Actions;
     Name = "Sonar Rotate Input",
     Icon = "icons/plugin",
     Tooltip = "Rotate the SteelSeries Sonar microphone input to the next active input device.",
-    Controllers = ["Keypad"],
+    Controllers = ["Keypad", "Knob"],
     PropertyInspectorPath = "property-inspector.html"
 )]
 [SDActionState(Image = "icons/plugin", Title = "Rotate Mic")]
@@ -17,6 +17,8 @@ public sealed class SonarRotateInputDeviceHandler(
     string context,
     Dictionary<string, object>? settings) : SonarActionHandler(connection, context, settings)
 {
+    private int _pendingTicks;
+
     public override Task OnWillAppearAsync()
     {
         Log.Info($"RotateInput willAppear context={Context}");
@@ -26,7 +28,24 @@ public sealed class SonarRotateInputDeviceHandler(
     public override async Task OnKeyDownAsync()
     {
         Log.Info($"RotateInput keyDown context={Context}");
-        var result = await Client.RotateInputDeviceAsync(SonarSettings.AllowExcludedDevices, DisposeToken);
+        await RotateAsync(1);
+    }
+
+    public override async Task OnDialRotateAsync(int ticks, bool pressed)
+    {
+        var adjustedTicks = SonarSettings.InvertKnob ? -ticks : ticks;
+        _pendingTicks += adjustedTicks;
+        if (Math.Abs(_pendingTicks) < SonarSettings.RotateTicks) return;
+
+        var direction = _pendingTicks < 0 ? -1 : 1;
+        _pendingTicks = 0;
+        Log.Info($"RotateInput dialRotate context={Context} direction={direction}");
+        await RotateAsync(direction);
+    }
+
+    private async Task RotateAsync(int direction)
+    {
+        var result = await Client.RotateInputDeviceAsync(SonarSettings.AllowExcludedDevices, direction, DisposeToken);
         if (!result.Success)
         {
             await ShowErrorAsync(result.ErrorSummary ?? "Sonar input device rotation failed");

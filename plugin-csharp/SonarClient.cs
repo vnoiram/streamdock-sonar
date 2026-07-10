@@ -108,6 +108,11 @@ public sealed class SonarClient : IDisposable
     public async Task<double> GetChatMixBalanceAsync(CancellationToken cancellationToken = default)
     {
         using var document = await RequestJsonAsync("/ChatMix", HttpMethod.Get, null, cancellationToken);
+        if (TryGetPropertyIgnoreCase(document.RootElement, "state", out var state) && IsDisabledChatMixState(state))
+        {
+            throw new InvalidOperationException("Sonar ChatMix is disabled or unavailable");
+        }
+
         if (TryGetPropertyIgnoreCase(document.RootElement, "balance", out var balance) && balance.ValueKind == JsonValueKind.Number)
         {
             LastResult = SonarOperationResult.Ok(null, "/ChatMix");
@@ -220,7 +225,7 @@ public sealed class SonarClient : IDisposable
         return await PutAsync("", route, cancellationToken);
     }
 
-    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, string rotationMode = "target", bool allowExcludedDevices = false, CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, string rotationMode = "target", bool allowExcludedDevices = false, int direction = 1, CancellationToken cancellationToken = default)
     {
         var devices = await GetRotatableOutputDevicesAsync(allowExcludedDevices, cancellationToken);
         if (devices.Count == 0)
@@ -235,7 +240,7 @@ public sealed class SonarClient : IDisposable
             _ => await GetCurrentOutputDeviceIdAsync(mode, targetRole, streamMix, cancellationToken)
         };
         var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
-        var nextIndex = currentIndex >= 0 && currentIndex + 1 < devices.Count ? currentIndex + 1 : 0;
+        var nextIndex = NextIndex(devices.Count, currentIndex, direction);
         var nextDeviceId = devices[nextIndex].Id;
 
         return selectedMode switch
@@ -246,7 +251,7 @@ public sealed class SonarClient : IDisposable
         };
     }
 
-    public async Task<SonarOperationResult> RotateInputDeviceAsync(bool allowExcludedDevices = false, CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> RotateInputDeviceAsync(bool allowExcludedDevices = false, int direction = 1, CancellationToken cancellationToken = default)
     {
         var devices = await GetRotatableInputDevicesAsync(allowExcludedDevices, cancellationToken);
         if (devices.Count == 0)
@@ -255,8 +260,16 @@ public sealed class SonarClient : IDisposable
         var mode = await GetModeAsync(cancellationToken);
         var currentDeviceId = await GetCurrentInputDeviceIdAsync(mode, cancellationToken);
         var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
-        var nextIndex = currentIndex >= 0 && currentIndex + 1 < devices.Count ? currentIndex + 1 : 0;
+        var nextIndex = NextIndex(devices.Count, currentIndex, direction);
         return await SetInputDeviceAsync(devices[nextIndex].Id, cancellationToken);
+    }
+
+    private static int NextIndex(int count, int currentIndex, int direction)
+    {
+        if (count <= 0) return 0;
+        if (currentIndex < 0) return direction < 0 ? count - 1 : 0;
+        var delta = direction < 0 ? -1 : 1;
+        return (currentIndex + delta + count) % count;
     }
 
     private async Task<IReadOnlyList<SonarAudioDevice>> GetRotatableOutputDevicesAsync(bool allowExcludedDevices, CancellationToken cancellationToken)
@@ -796,6 +809,18 @@ public sealed class SonarClient : IDisposable
         return TryGetPropertyIgnoreCase(element, propertyName, out var property) && property.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? property.GetBoolean()
             : null;
+    }
+
+    private static bool IsDisabledChatMixState(JsonElement state)
+    {
+        return state.ValueKind switch
+        {
+            JsonValueKind.Number when state.TryGetInt32(out var value) => value == 0,
+            JsonValueKind.String => string.Equals(state.GetString(), "disabled", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(state.GetString(), "0", StringComparison.OrdinalIgnoreCase),
+            JsonValueKind.False => true,
+            _ => false
+        };
     }
 
     private static JsonElement GetRequiredProperty(JsonElement element, string propertyName)

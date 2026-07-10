@@ -12,6 +12,7 @@ public sealed record SonarSettings(
     string TargetProfileId,
     string RotationMode,
     int Step,
+    int RotateTicks,
     string? TitleLabel,
     bool AllowExcludedDevices,
     bool InvertKnob)
@@ -31,11 +32,13 @@ public sealed record SonarSettings(
         var deviceId = ReadString(settings, "deviceId") ?? "";
         var targetProfileId = ReadString(settings, "targetProfileId") ?? "";
         var rotationMode = NormalizeRotationMode(ReadString(settings, "rotationMode"));
-        var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
+        var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, -20, 20);
+        if (step == 0) step = 1;
+        var rotateTicks = Math.Clamp(ReadInt(settings, "rotateTicks") ?? 3, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
         var allowExcludedDevices = ReadBool(settings, "allowExcludedDevices") ?? false;
-        var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, rotationMode, step, titleLabel, allowExcludedDevices, invertKnob);
+        var invertKnob = ReadBool(settings, "invert") ?? ReadBool(settings, "invertKnob") ?? false;
+        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, rotationMode, step, rotateTicks, titleLabel, allowExcludedDevices, invertKnob);
     }
 
     public string DisplayName => DisplayNameFor(TargetRole);

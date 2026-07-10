@@ -24,8 +24,8 @@
       "Name": "Sonar Mixer Volume",
       "Tooltip": "Adjust a SteelSeries Sonar mixer channel directly.",
       "Controllers": ["Keypad", "Knob"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Volume", "Image": "icons/plugin" }],
+      "Icon": "icons/volume",
+      "States": [{ "Title": "Volume", "Image": "icons/volume" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -33,10 +33,10 @@
       "Name": "Sonar Mixer Mute",
       "Tooltip": "Toggle mute for a SteelSeries Sonar mixer channel directly.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
+      "Icon": "icons/mute",
       "States": [
-        { "Title": "Mute", "Image": "icons/plugin" },
-        { "Title": "Muted", "Image": "icons/plugin" }
+        { "Title": "Mute", "Image": "icons/mute" },
+        { "Title": "Muted", "Image": "icons/mute" }
       ],
       "PropertyInspectorPath": "property-inspector.html"
     },
@@ -45,8 +45,8 @@
       "Name": "Sonar Mixer Overview",
       "Tooltip": "Show selected SteelSeries Sonar mixer channel states.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "", "Image": "icons/plugin" }],
+      "Icon": "icons/overview",
+      "States": [{ "Title": "", "Image": "icons/overview" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -54,8 +54,8 @@
       "Name": "Sonar ChatMix",
       "Tooltip": "Adjust SteelSeries Sonar ChatMix.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "ChatMix", "Image": "icons/plugin" }],
+      "Icon": "icons/chatmix",
+      "States": [{ "Title": "ChatMix", "Image": "icons/chatmix" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -63,8 +63,8 @@
       "Name": "Sonar ChatMix Dial",
       "Tooltip": "Adjust SteelSeries Sonar ChatMix with a dial.",
       "Controllers": ["Knob"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "ChatMix", "Image": "icons/plugin" }],
+      "Icon": "icons/chatmix",
+      "States": [{ "Title": "ChatMix", "Image": "icons/chatmix" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -72,17 +72,17 @@
       "Name": "Sonar Output Device",
       "Tooltip": "Switch a SteelSeries Sonar output device by device id.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Output", "Image": "icons/plugin" }],
+      "Icon": "icons/output",
+      "States": [{ "Title": "Output", "Image": "icons/output" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
       "UUID": "local.streamdock.sonar.rotate-output-device",
       "Name": "Sonar Rotate Output",
       "Tooltip": "Rotate a SteelSeries Sonar output target to the next active output device.",
-      "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Rotate", "Image": "icons/plugin" }],
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/rotate-output",
+      "States": [{ "Title": "Rotate", "Image": "icons/rotate-output" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -90,17 +90,17 @@
       "Name": "Sonar Input Device",
       "Tooltip": "Switch the SteelSeries Sonar microphone input device by device id.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Input", "Image": "icons/plugin" }],
+      "Icon": "icons/input",
+      "States": [{ "Title": "Input", "Image": "icons/input" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
       "UUID": "local.streamdock.sonar.rotate-input-device",
       "Name": "Sonar Rotate Input",
       "Tooltip": "Rotate the SteelSeries Sonar microphone input to the next active input device.",
-      "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Rotate Mic", "Image": "icons/plugin" }],
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/rotate-input",
+      "States": [{ "Title": "Rotate Mic", "Image": "icons/rotate-input" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -108,8 +108,8 @@
       "Name": "Sonar Profile",
       "Tooltip": "Set a SteelSeries Sonar channel profile.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Profile", "Image": "icons/plugin" }],
+      "Icon": "icons/profile",
+      "States": [{ "Title": "Profile", "Image": "icons/profile" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -117,8 +117,8 @@
       "Name": "Diagnostics",
       "Tooltip": "Show Sonar discovery and request diagnostics.",
       "Controllers": ["Keypad"],
-      "Icon": "icons/plugin",
-      "States": [{ "Title": "Diag", "Image": "icons/plugin" }],
+      "Icon": "icons/diagnostics",
+      "States": [{ "Title": "Diag", "Image": "icons/diagnostics" }],
       "PropertyInspectorPath": "property-inspector.html"
     }
   ]

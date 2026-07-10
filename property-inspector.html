@@ -60,6 +60,10 @@
       <div class="sdpi-item-label">Excluded devices</div>
       <input id="allowExcludedDevices" class="sdpi-checkbox" type="checkbox">
     </div>
+    <div class="sdpi-item rotation-common-settings">
+      <div class="sdpi-item-label">Rotate ticks</div>
+      <input id="rotateTicks" class="sdpi-item-value" type="number" min="1" max="20" value="3">
+    </div>
     <div class="sdpi-item device-settings">
       <div class="sdpi-item-label">Device</div>
       <select id="deviceSelect" class="sdpi-item-value">
@@ -88,14 +92,14 @@
     </div>
     <div class="sdpi-item volume-settings">
       <div class="sdpi-item-label">Step</div>
-      <input id="step" class="sdpi-item-value" type="number" min="1" max="20" value="2">
+      <input id="step" class="sdpi-item-value" type="number" min="-20" max="20" value="2">
     </div>
     <div class="sdpi-item volume-settings">
       <div class="sdpi-item-label">Title label</div>
       <input id="titleLabel" class="sdpi-item-value" placeholder="optional display alias">
     </div>
     <div class="sdpi-item volume-settings">
-      <div class="sdpi-item-label">Invert knob</div>
+      <div class="sdpi-item-label">Invert</div>
       <input id="invertKnob" class="sdpi-checkbox" type="checkbox">
     </div>
     <div class="sdpi-item diagnostics">

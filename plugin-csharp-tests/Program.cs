@@ -14,6 +14,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("overview selected targets render states", OverviewSelectedTargetsRenderStatesAsync),
     ("overview missing target renders error cell", OverviewMissingTargetRendersErrorCellAsync),
     ("chatmix get and set uses ChatMix route", ChatMixGetAndSetUsesRouteAsync),
+    ("chatmix disabled is user visible error", ChatMixDisabledIsUserVisibleErrorAsync),
+    ("settings support negative step and invert alias", SettingsSupportNegativeStepAndInvertAlias),
     ("classic output device uses classic redirection route", ClassicOutputDeviceUsesRedirectionRouteAsync),
     ("stream output device uses stream redirection route", StreamOutputDeviceUsesRedirectionRouteAsync),
     ("classic master output device is user visible error", ClassicMasterOutputDeviceIsUserVisibleErrorAsync),
@@ -29,6 +31,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("stream rotate all output updates stream mixes", StreamRotateAllOutputUpdatesStreamMixesAsync),
     ("auto rotate output follows current sonar mode", AutoRotateOutputFollowsCurrentModeAsync),
     ("rotate output can include excluded devices", RotateOutputCanIncludeExcludedDevicesAsync),
+    ("rotate output supports previous direction", RotateOutputSupportsPreviousDirectionAsync),
     ("classic rotate input uses next capture device", ClassicRotateInputUsesNextCaptureDeviceAsync),
     ("stream rotate input uses next capture device", StreamRotateInputUsesNextCaptureDeviceAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
@@ -178,6 +181,38 @@ static async Task ChatMixGetAndSetUsesRouteAsync()
     AssertEqual(true, result.Success, "chatmix set success");
     AssertEqual("/ChatMix", server.LastPutPath, "chatmix put path");
     AssertEqual("balance=-0.25", server.LastPutQuery, "chatmix put query");
+}
+
+static async Task ChatMixDisabledIsUserVisibleErrorAsync()
+{
+    using var server = FakeSonarServer.Start("stream", chatMixState: 0);
+    using var client = new SonarClient(server.BaseUrl);
+
+    try
+    {
+        _ = await client.GetChatMixBalanceAsync();
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("disabled", StringComparison.OrdinalIgnoreCase))
+    {
+        return;
+    }
+
+    throw new InvalidOperationException("Expected disabled ChatMix error");
+}
+
+static Task SettingsSupportNegativeStepAndInvertAlias()
+{
+    var settings = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["step"] = -3,
+        ["invert"] = true,
+        ["rotateTicks"] = 5
+    });
+
+    AssertEqual(-3, settings.Step, "negative step");
+    AssertEqual(true, settings.InvertKnob, "invert alias");
+    AssertEqual(5, settings.RotateTicks, "rotate ticks");
+    return Task.CompletedTask;
 }
 
 static async Task ClassicOutputDeviceUsesRedirectionRouteAsync()
@@ -360,6 +395,17 @@ static async Task RotateOutputCanIncludeExcludedDevicesAsync()
     AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate with excluded path");
 }
 
+static async Task RotateOutputSupportsPreviousDirectionAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring", direction: -1);
+
+    AssertEqual(true, result.Success, "rotate previous success");
+    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate previous wraps to last path");
+}
+
 static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
 {
     using var server = FakeSonarServer.Start("classic");
@@ -407,14 +453,16 @@ sealed class FakeSonarServer : IDisposable
     private readonly HttpListener _listener;
     private readonly string _mode;
     private readonly bool _failPut;
+    private readonly int _chatMixState;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
 
-    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut)
+    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState)
     {
         _listener = listener;
         _mode = mode;
         _failPut = failPut;
+        _chatMixState = chatMixState;
         BaseUrl = $"http://127.0.0.1:{port}";
         _loop = Task.Run(ServeAsync);
     }
@@ -425,13 +473,13 @@ sealed class FakeSonarServer : IDisposable
     public string? LastPutPath { get; private set; }
     public string? LastPutQuery { get; private set; }
 
-    public static FakeSonarServer Start(string mode, bool failPut = false)
+    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1)
     {
         var port = GetFreeTcpPort();
         var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
-        return new FakeSonarServer(listener, port, mode, failPut);
+        return new FakeSonarServer(listener, port, mode, failPut, chatMixState);
     }
 
     public void Dispose()
@@ -488,7 +536,7 @@ sealed class FakeSonarServer : IDisposable
 
         if (path == "/ChatMix")
         {
-            await WriteAsync(context, """{"balance":0.5,"state":1}""");
+            await WriteAsync(context, $$"""{"balance":0.5,"state":{{_chatMixState}}}""");
             return;
         }
 
