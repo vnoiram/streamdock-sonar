@@ -229,6 +229,13 @@ public sealed class SonarClient : IDisposable
     {
         var mode = await GetModeAsync(cancellationToken);
         var selectedMode = NormalizeRotationMode(rotationMode, mode);
+        if (selectedMode == "target" && NormalizeMode(mode) == "stream")
+        {
+            var result = SonarOperationResult.Error(mode, null, null, "Stream mode output rotation is mix-based; choose All stream or use Monitoring/Streaming mix rotation");
+            LastResult = result;
+            return result;
+        }
+
         var currentDeviceId = selectedMode switch
         {
             "all-classic" => await GetCurrentOutputDeviceIdAsync("classic", "game", "monitoring", cancellationToken),
@@ -241,6 +248,13 @@ public sealed class SonarClient : IDisposable
 
         var currentIndex = FindDeviceIndex(devices, currentDeviceId);
         Log.Info($"Rotate output targetRole={targetRole} selectedMode={selectedMode} currentIndex={currentIndex} direction={direction} candidates={SummarizeDeviceIds(devices)} current={currentDeviceId}");
+        if (currentIndex < 0)
+        {
+            var result = SonarOperationResult.Error(selectedMode, null, null, $"Current Sonar output device is not in the rotatable device list for {targetRole}");
+            LastResult = result;
+            return result;
+        }
+
         var nextIndex = NextIndex(devices.Count, currentIndex, direction);
         var nextDeviceId = devices[nextIndex].Id;
 
@@ -319,9 +333,9 @@ public sealed class SonarClient : IDisposable
 
         var allowedIds = await GetFallbackDeviceIdsAsync(FallbackChannel(targetRole), cancellationToken);
         var filtered = devices.Where(device => ContainsDeviceId(allowedIds, device.Id)).ToArray();
-        if (filtered.Length >= 2 && FindDeviceIndex(filtered, currentDeviceId) >= 0) return filtered;
+        if (filtered.Length > 0) return filtered;
 
-        Log.Info($"Output fallback devices did not match current rotation state; using active render devices targetRole={targetRole} filtered={SummarizeDeviceIds(filtered)} all={SummarizeDeviceIds(devices)} current={currentDeviceId}");
+        Log.Info($"No fallback devices for targetRole={targetRole}; using active render devices all={SummarizeDeviceIds(devices)} current={currentDeviceId}");
         return devices;
     }
 

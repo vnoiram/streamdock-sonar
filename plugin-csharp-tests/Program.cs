@@ -27,6 +27,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("select config profile uses select route", SelectConfigProfileUsesRouteAsync),
     ("classic rotate output uses next render device", ClassicRotateOutputUsesNextRenderDeviceAsync),
     ("stream rotate output uses next render device", StreamRotateOutputUsesNextRenderDeviceAsync),
+    ("stream target rotate output is user visible error", StreamTargetRotateOutputIsUserVisibleErrorAsync),
     ("classic rotate all output updates classic channels", ClassicRotateAllOutputUpdatesClassicChannelsAsync),
     ("stream rotate all output updates stream mixes", StreamRotateAllOutputUpdatesStreamMixesAsync),
     ("auto rotate output follows current sonar mode", AutoRotateOutputFollowsCurrentModeAsync),
@@ -343,10 +344,22 @@ static async Task StreamRotateOutputUsesNextRenderDeviceAsync()
     using var server = FakeSonarServer.Start("stream");
     using var client = new SonarClient(server.BaseUrl);
 
-    var result = await client.RotateOutputDeviceAsync("game", "streaming");
+    var result = await client.RotateOutputDeviceAsync("game", "streaming", "all-streaming");
 
     AssertEqual(true, result.Success, "stream rotate success");
     AssertEqual("/StreamRedirections/streaming/deviceId/render-device-2", server.LastPutPath, "stream rotate path");
+}
+
+static async Task StreamTargetRotateOutputIsUserVisibleErrorAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "streaming");
+
+    AssertEqual(false, result.Success, "stream target rotate failure");
+    AssertEqual(true, result.ErrorSummary?.Contains("mix-based", StringComparison.OrdinalIgnoreCase) == true, "stream target rotate error");
+    AssertEqual(0, server.PutPaths.Count, "stream target rotate should not put");
 }
 
 static async Task ClassicRotateAllOutputUpdatesClassicChannelsAsync()
