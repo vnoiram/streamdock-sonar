@@ -4,7 +4,7 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.3`.
+Current version: `0.3.4`.
 
 ## Actions
 
@@ -12,6 +12,7 @@ Current version: `0.3.3`.
 - `Sonar Mixer Mute`: toggles mute for one Sonar mixer target.
 - `Sonar Mixer Overview`: shows selected Sonar mixer target states on the Stream Dock key.
 - `Sonar ChatMix`: moves ChatMix toward Chat/Game or resets it to center.
+- `Sonar ChatMix Dial`: adjusts ChatMix with a knob; dial press resets to center.
 - `Sonar Output Device`: switches a Sonar output device by configured Sonar `deviceId`.
 - `Sonar Input Device`: switches the Sonar microphone input device by configured Sonar `deviceId`.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
@@ -126,7 +127,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.3.zip
+dist/release/streamdock-sonar-0.3.4.zip
 ```
 
 The packaged plugin directory is:

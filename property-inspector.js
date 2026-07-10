@@ -116,6 +116,10 @@
     return currentAction === 'local.streamdock.sonar.chatmix';
   }
 
+  function isChatMixDialAction() {
+    return currentAction === 'local.streamdock.sonar.chatmix-dial';
+  }
+
   function isOutputDeviceAction() {
     return currentAction === 'local.streamdock.sonar.output-device';
   }
@@ -144,28 +148,33 @@
 
     var isOverview = isOverviewAction();
     var isChatMix = isChatMixAction();
+    var isChatMixDial = isChatMixDialAction();
     var isOutputDevice = isOutputDeviceAction();
     var isInputDevice = isInputDeviceAction();
+    var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview || isChatMix || isInputDevice);
+      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.chatmix-settings'), function (element) {
-      element.classList.toggle('is-hidden', !isChatMix);
+      element.classList.toggle('is-hidden', !isChatMix && !isChatMixDial);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isInputDevice);
+      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.device-settings'), function (element) {
       element.classList.toggle('is-hidden', !isDeviceAction());
     });
     Array.prototype.forEach.call(document.querySelectorAll('.volume-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction());
+      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isDiagnostics);
     });
+    byId('chatMixMode').closest('.sdpi-item').classList.toggle('is-hidden', !isChatMix);
+    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isDiagnostics);
+    byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
+    byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
 
-    var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.diagnostics'), function (element) {
       element.classList.toggle('is-hidden', !isDiagnostics);
     });

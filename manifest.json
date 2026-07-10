@@ -2,7 +2,7 @@
   "Name": "Stream Dock Sonar",
   "Description": "Control SteelSeries GG Sonar mixer volume and mute directly.",
   "Author": "local",
-  "Version": "0.3.3",
+  "Version": "0.3.4",
   "SDKVersion": 1,
   "CodePathWin": "plugin/StreamDockSonar.exe",
   "Icon": "icons/plugin",
@@ -46,7 +46,7 @@
       "Tooltip": "Show selected SteelSeries Sonar mixer channel states.",
       "Controllers": ["Keypad"],
       "Icon": "icons/plugin",
-      "States": [{ "Title": "Overview", "Image": "icons/plugin" }],
+      "States": [{ "Title": "", "Image": "icons/plugin" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -54,6 +54,15 @@
       "Name": "Sonar ChatMix",
       "Tooltip": "Adjust SteelSeries Sonar ChatMix.",
       "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "ChatMix", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.chatmix-dial",
+      "Name": "Sonar ChatMix Dial",
+      "Tooltip": "Adjust SteelSeries Sonar ChatMix with a dial.",
+      "Controllers": ["Knob"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "ChatMix", "Image": "icons/plugin" }],
       "PropertyInspectorPath": "property-inspector.html"
