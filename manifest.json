@@ -2,7 +2,7 @@
   "Name": "Stream Dock Sonar",
   "Description": "Control SteelSeries GG Sonar mixer volume and mute directly.",
   "Author": "local",
-  "Version": "0.3.5",
+  "Version": "0.3.6",
   "SDKVersion": 1,
   "CodePathWin": "plugin/StreamDockSonar.exe",
   "Icon": "icons/plugin",
@@ -74,6 +74,15 @@
       "Controllers": ["Keypad"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Output", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.rotate-output-device",
+      "Name": "Sonar Rotate Output",
+      "Tooltip": "Rotate a SteelSeries Sonar output target to the next active output device.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Rotate", "Image": "icons/plugin" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {

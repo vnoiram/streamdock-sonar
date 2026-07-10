@@ -23,6 +23,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("input devices filters active non virtual capture devices", InputDevicesFiltersActiveCaptureDevicesAsync),
     ("config profiles filter by target role", ConfigProfilesFilterByTargetRoleAsync),
     ("select config profile uses select route", SelectConfigProfileUsesRouteAsync),
+    ("classic rotate output uses next render device", ClassicRotateOutputUsesNextRenderDeviceAsync),
+    ("stream rotate output uses next render device", StreamRotateOutputUsesNextRenderDeviceAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -213,7 +215,7 @@ static async Task OutputDevicesFiltersActiveRenderDevicesAsync()
 
     var devices = await client.GetOutputDevicesAsync();
 
-    AssertEqual(1, devices.Count, "output device count");
+    AssertEqual(2, devices.Count, "output device count");
     AssertEqual("render-device", devices[0].Id, "output device id");
     AssertEqual("Speakers", devices[0].FriendlyName, "output device name");
 }
@@ -274,6 +276,28 @@ static async Task SelectConfigProfileUsesRouteAsync()
 
     AssertEqual(true, result.Success, "profile select success");
     AssertEqual("/Configs/game-custom/select", server.LastPutPath, "profile select path");
+}
+
+static async Task ClassicRotateOutputUsesNextRenderDeviceAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring");
+
+    AssertEqual(true, result.Success, "classic rotate success");
+    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "classic rotate path");
+}
+
+static async Task StreamRotateOutputUsesNextRenderDeviceAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "streaming");
+
+    AssertEqual(true, result.Success, "stream rotate success");
+    AssertEqual("/StreamRedirections/streaming/deviceId/render-device-2", server.LastPutPath, "stream rotate path");
 }
 
 static Task LegacyStreamerTargetMapsStreamMix()
@@ -389,9 +413,36 @@ sealed class FakeSonarServer : IDisposable
             await WriteAsync(context, """
             [
               { "id": "render-device", "friendlyName": "Speakers", "dataFlow": "render", "role": "none", "state": "active", "isVad": false },
+              { "id": "render-device-2", "friendlyName": "Headset", "dataFlow": "render", "role": "none", "state": "active", "isVad": false },
               { "id": "virtual-render", "friendlyName": "Sonar Game", "dataFlow": "render", "role": "game", "state": "active", "isVad": true },
               { "id": "inactive-render", "friendlyName": "Disabled", "dataFlow": "render", "role": "none", "state": "disabled", "isVad": false },
               { "id": "capture-device", "friendlyName": "Microphone", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false }
+            ]
+            """);
+            return;
+        }
+
+        if (path == "/ClassicRedirections")
+        {
+            await WriteAsync(context, """
+            [
+              { "id": "game", "deviceId": "render-device", "isRunning": true },
+              { "id": "chatRender", "deviceId": "render-device", "isRunning": true },
+              { "id": "media", "deviceId": "render-device", "isRunning": true },
+              { "id": "aux", "deviceId": "render-device", "isRunning": true },
+              { "id": "mic", "deviceId": "capture-device", "isRunning": true }
+            ]
+            """);
+            return;
+        }
+
+        if (path == "/StreamRedirections")
+        {
+            await WriteAsync(context, """
+            [
+              { "streamRedirectionId": "monitoring", "deviceId": "render-device", "isRunning": true },
+              { "streamRedirectionId": "streaming", "deviceId": "render-device", "isRunning": true },
+              { "streamRedirectionId": "mic", "deviceId": "capture-device", "isRunning": true }
             ]
             """);
             return;

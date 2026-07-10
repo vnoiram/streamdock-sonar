@@ -220,6 +220,19 @@ public sealed class SonarClient : IDisposable
         return await PutAsync("", route, cancellationToken);
     }
 
+    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, CancellationToken cancellationToken = default)
+    {
+        var devices = await GetOutputDevicesAsync(cancellationToken);
+        if (devices.Count == 0)
+            return SonarOperationResult.Error(null, null, null, "No Sonar output devices are available");
+
+        var mode = await GetModeAsync(cancellationToken);
+        var currentDeviceId = await GetCurrentOutputDeviceIdAsync(mode, targetRole, streamMix, cancellationToken);
+        var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
+        var nextIndex = currentIndex >= 0 && currentIndex + 1 < devices.Count ? currentIndex + 1 : 0;
+        return await SetOutputDeviceAsync(targetRole, streamMix, devices[nextIndex].Id, cancellationToken);
+    }
+
     private async Task<IReadOnlyList<SonarAudioDevice>> GetAudioDevicesAsync(string dataFlow, CancellationToken cancellationToken)
     {
         using var document = await RequestJsonAsync("/audioDevices", HttpMethod.Get, null, cancellationToken);
@@ -240,6 +253,28 @@ public sealed class SonarClient : IDisposable
 
         LastResult = SonarOperationResult.Ok(null, "/audioDevices");
         return devices;
+    }
+
+    private async Task<string> GetCurrentOutputDeviceIdAsync(string mode, string targetRole, string streamMix, CancellationToken cancellationToken)
+    {
+        var normalizedMode = NormalizeMode(mode);
+        var route = normalizedMode == "stream" ? "/StreamRedirections" : "/ClassicRedirections";
+        using var document = await RequestJsonAsync(route, HttpMethod.Get, null, cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException($"Sonar {route} response is not an array");
+
+        var desiredId = normalizedMode == "stream" ? NormalizeStreamMix(streamMix) : HttpChannel(targetRole, normalizedMode);
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            var redirection = ReadRedirection(item, normalizedMode);
+            if (string.Equals(redirection.Id, desiredId, StringComparison.OrdinalIgnoreCase))
+            {
+                LastResult = SonarOperationResult.Ok(normalizedMode, route);
+                return redirection.DeviceId;
+            }
+        }
+
+        throw new InvalidOperationException($"Sonar redirection '{desiredId}' was not found");
     }
 
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
@@ -444,6 +479,16 @@ public sealed class SonarClient : IDisposable
             TryGetString(item, "name") ?? "",
             TryGetString(item, "virtualAudioDevice") ?? "",
             TryGetBool(item, "isPreset") ?? false);
+    }
+
+    private static SonarRedirection ReadRedirection(JsonElement item, string mode)
+    {
+        return new SonarRedirection(
+            NormalizeMode(mode) == "stream"
+                ? TryGetString(item, "streamRedirectionId") ?? TryGetString(item, "id") ?? ""
+                : TryGetString(item, "id") ?? "",
+            TryGetString(item, "deviceId") ?? "",
+            TryGetBool(item, "isRunning") ?? false);
     }
 
     private static double ReadVolume(JsonElement node)

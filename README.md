@@ -4,7 +4,7 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.5`.
+Current version: `0.3.6`.
 
 ## Actions
 
@@ -14,6 +14,7 @@ Current version: `0.3.5`.
 - `Sonar ChatMix`: moves ChatMix toward Chat/Game or resets it to center.
 - `Sonar ChatMix Dial`: adjusts ChatMix with a knob; dial press resets to center.
 - `Sonar Output Device`: switches a Sonar output device by configured Sonar `deviceId`.
+- `Sonar Rotate Output`: rotates a selected Sonar output target to the next active non-virtual render device.
 - `Sonar Input Device`: switches the Sonar microphone input device by configured Sonar `deviceId`.
 - `Sonar Profile`: selects a Sonar EQ/profile for a mixer target.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
@@ -60,6 +61,7 @@ Output device switching follows Sonar's redirection routes:
 - `stream`: `/StreamRedirections/{monitoring|streaming}/deviceId/{deviceId}`.
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
+`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/mic/deviceId/{deviceId}` in classic mode and `/StreamRedirections/mic/deviceId/{deviceId}` in stream mode.
 `Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.
 
@@ -129,7 +131,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.5.zip
+dist/release/streamdock-sonar-0.3.6.zip
 ```
 
 The packaged plugin directory is:

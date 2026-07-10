@@ -140,6 +140,10 @@
     return currentAction === 'local.streamdock.sonar.profile';
   }
 
+  function isRotateOutputAction() {
+    return currentAction === 'local.streamdock.sonar.rotate-output-device';
+  }
+
   function render() {
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
@@ -161,6 +165,7 @@
     var isOutputDevice = isOutputDeviceAction();
     var isInputDevice = isInputDeviceAction();
     var isProfile = isProfileAction();
+    var isRotateOutput = isRotateOutputAction();
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
       element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isDiagnostics);
@@ -181,10 +186,10 @@
       element.classList.toggle('is-hidden', !isProfile);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.volume-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isDiagnostics);
+      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isDiagnostics);
     });
     byId('chatMixMode').closest('.sdpi-item').classList.toggle('is-hidden', !isChatMix);
-    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isDiagnostics);
+    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isDiagnostics);
     byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
 
