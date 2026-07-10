@@ -25,6 +25,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("select config profile uses select route", SelectConfigProfileUsesRouteAsync),
     ("classic rotate output uses next render device", ClassicRotateOutputUsesNextRenderDeviceAsync),
     ("stream rotate output uses next render device", StreamRotateOutputUsesNextRenderDeviceAsync),
+    ("classic rotate input uses next capture device", ClassicRotateInputUsesNextCaptureDeviceAsync),
+    ("stream rotate input uses next capture device", StreamRotateInputUsesNextCaptureDeviceAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -249,7 +251,7 @@ static async Task InputDevicesFiltersActiveCaptureDevicesAsync()
 
     var devices = await client.GetInputDevicesAsync();
 
-    AssertEqual(1, devices.Count, "input device count");
+    AssertEqual(2, devices.Count, "input device count");
     AssertEqual("capture-device", devices[0].Id, "input device id");
     AssertEqual("Microphone", devices[0].FriendlyName, "input device name");
 }
@@ -298,6 +300,28 @@ static async Task StreamRotateOutputUsesNextRenderDeviceAsync()
 
     AssertEqual(true, result.Success, "stream rotate success");
     AssertEqual("/StreamRedirections/streaming/deviceId/render-device-2", server.LastPutPath, "stream rotate path");
+}
+
+static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateInputDeviceAsync();
+
+    AssertEqual(true, result.Success, "classic rotate input success");
+    AssertEqual("/ClassicRedirections/mic/deviceId/capture-device-2", server.LastPutPath, "classic rotate input path");
+}
+
+static async Task StreamRotateInputUsesNextCaptureDeviceAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateInputDeviceAsync();
+
+    AssertEqual(true, result.Success, "stream rotate input success");
+    AssertEqual("/StreamRedirections/mic/deviceId/capture-device-2", server.LastPutPath, "stream rotate input path");
 }
 
 static Task LegacyStreamerTargetMapsStreamMix()
@@ -416,7 +440,8 @@ sealed class FakeSonarServer : IDisposable
               { "id": "render-device-2", "friendlyName": "Headset", "dataFlow": "render", "role": "none", "state": "active", "isVad": false },
               { "id": "virtual-render", "friendlyName": "Sonar Game", "dataFlow": "render", "role": "game", "state": "active", "isVad": true },
               { "id": "inactive-render", "friendlyName": "Disabled", "dataFlow": "render", "role": "none", "state": "disabled", "isVad": false },
-              { "id": "capture-device", "friendlyName": "Microphone", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false }
+              { "id": "capture-device", "friendlyName": "Microphone", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false },
+              { "id": "capture-device-2", "friendlyName": "USB Mic", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false }
             ]
             """);
             return;

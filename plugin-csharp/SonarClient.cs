@@ -233,6 +233,19 @@ public sealed class SonarClient : IDisposable
         return await SetOutputDeviceAsync(targetRole, streamMix, devices[nextIndex].Id, cancellationToken);
     }
 
+    public async Task<SonarOperationResult> RotateInputDeviceAsync(CancellationToken cancellationToken = default)
+    {
+        var devices = await GetInputDevicesAsync(cancellationToken);
+        if (devices.Count == 0)
+            return SonarOperationResult.Error(null, null, null, "No Sonar input devices are available");
+
+        var mode = await GetModeAsync(cancellationToken);
+        var currentDeviceId = await GetCurrentInputDeviceIdAsync(mode, cancellationToken);
+        var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
+        var nextIndex = currentIndex >= 0 && currentIndex + 1 < devices.Count ? currentIndex + 1 : 0;
+        return await SetInputDeviceAsync(devices[nextIndex].Id, cancellationToken);
+    }
+
     private async Task<IReadOnlyList<SonarAudioDevice>> GetAudioDevicesAsync(string dataFlow, CancellationToken cancellationToken)
     {
         using var document = await RequestJsonAsync("/audioDevices", HttpMethod.Get, null, cancellationToken);
@@ -275,6 +288,27 @@ public sealed class SonarClient : IDisposable
         }
 
         throw new InvalidOperationException($"Sonar redirection '{desiredId}' was not found");
+    }
+
+    private async Task<string> GetCurrentInputDeviceIdAsync(string mode, CancellationToken cancellationToken)
+    {
+        var normalizedMode = NormalizeMode(mode);
+        var route = normalizedMode == "stream" ? "/StreamRedirections" : "/ClassicRedirections";
+        using var document = await RequestJsonAsync(route, HttpMethod.Get, null, cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException($"Sonar {route} response is not an array");
+
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            var redirection = ReadRedirection(item, normalizedMode);
+            if (string.Equals(redirection.Id, "mic", StringComparison.OrdinalIgnoreCase))
+            {
+                LastResult = SonarOperationResult.Ok(normalizedMode, route);
+                return redirection.DeviceId;
+            }
+        }
+
+        throw new InvalidOperationException("Sonar redirection 'mic' was not found");
     }
 
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)

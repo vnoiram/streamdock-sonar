@@ -144,6 +144,10 @@
     return currentAction === 'local.streamdock.sonar.rotate-output-device';
   }
 
+  function isRotateInputAction() {
+    return currentAction === 'local.streamdock.sonar.rotate-input-device';
+  }
+
   function render() {
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
@@ -166,9 +170,10 @@
     var isInputDevice = isInputDeviceAction();
     var isProfile = isProfileAction();
     var isRotateOutput = isRotateOutputAction();
+    var isRotateInput = isRotateInputAction();
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isDiagnostics);
+      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isRotateInput || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
@@ -177,7 +182,7 @@
       element.classList.toggle('is-hidden', !isChatMix && !isChatMixDial);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isDiagnostics);
+      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.device-settings'), function (element) {
       element.classList.toggle('is-hidden', !isDeviceAction());
@@ -186,10 +191,10 @@
       element.classList.toggle('is-hidden', !isProfile);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.volume-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isDiagnostics);
+      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isRotateInput || isDiagnostics);
     });
     byId('chatMixMode').closest('.sdpi-item').classList.toggle('is-hidden', !isChatMix);
-    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isDiagnostics);
+    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isRotateInput || isDiagnostics);
     byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
 
