@@ -6,7 +6,7 @@
     <script src="property-inspector.js"></script>
   </head>
   <body>
-    <div class="sdpi-item">
+    <div class="sdpi-item single-target">
       <div class="sdpi-item-label">Target</div>
       <select id="targetRole" class="sdpi-item-value">
         <option value="master">Master</option>
@@ -16,6 +16,17 @@
         <option value="aux">Aux</option>
         <option value="chatCapture">Microphone</option>
       </select>
+    </div>
+    <div class="sdpi-item block overview-targets">
+      <div class="sdpi-item-label">Overview</div>
+      <div class="sdpi-item-value checkbox-grid">
+        <label><input type="checkbox" name="overviewTarget" value="master"> Master</label>
+        <label><input type="checkbox" name="overviewTarget" value="game"> Game</label>
+        <label><input type="checkbox" name="overviewTarget" value="chatRender"> Chat</label>
+        <label><input type="checkbox" name="overviewTarget" value="media"> Media</label>
+        <label><input type="checkbox" name="overviewTarget" value="aux"> Aux</label>
+        <label><input type="checkbox" name="overviewTarget" value="chatCapture"> Microphone</label>
+      </div>
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Stream mix</div>

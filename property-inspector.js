@@ -7,6 +7,7 @@
   var settings = {
     targetRole: 'game',
     streamMix: 'monitoring',
+    overviewTargets: ['master', 'game', 'chatRender', 'media', 'aux', 'chatCapture'],
     step: 2,
     titleLabel: '',
     invertKnob: false
@@ -54,6 +55,7 @@
     }
     normalized.targetRole = normalized.targetRole || 'game';
     normalized.streamMix = normalizeStreamMix(normalized.streamMix || legacyTargetToStreamMix(normalized.target));
+    normalized.overviewTargets = normalizeOverviewTargets(normalized.overviewTargets);
     normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
@@ -84,12 +86,37 @@
     return map[channel] || 'game';
   }
 
+  function normalizeOverviewTargets(targets) {
+    var all = ['master', 'game', 'chatRender', 'media', 'aux', 'chatCapture'];
+    if (!Array.isArray(targets)) return all.slice();
+    var selected = [];
+    targets.forEach(function (target) {
+      if (all.indexOf(target) !== -1 && selected.indexOf(target) === -1) selected.push(target);
+    });
+    return selected.length ? selected.slice(0, 6) : ['game'];
+  }
+
+  function isOverviewAction() {
+    return currentAction === 'local.streamdock.sonar.overview';
+  }
+
   function render() {
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
     byId('step').value = settings.step;
     byId('titleLabel').value = settings.titleLabel;
     byId('invertKnob').checked = !!settings.invertKnob;
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
+      input.checked = settings.overviewTargets.indexOf(input.value) !== -1;
+    });
+
+    var isOverview = isOverviewAction();
+    Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
+      element.classList.toggle('is-hidden', isOverview);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
+      element.classList.toggle('is-hidden', !isOverview);
+    });
 
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.diagnostics'), function (element) {
@@ -101,10 +128,18 @@
     if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
     settings.targetRole = byId('targetRole').value;
     settings.streamMix = byId('streamMix').value;
+    settings.overviewTargets = selectedOverviewTargets();
     settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.invertKnob = byId('invertKnob').checked;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
+  }
+
+  function selectedOverviewTargets() {
+    return normalizeOverviewTargets(Array.prototype.filter.call(
+      document.querySelectorAll('input[name="overviewTarget"]'),
+      function (input) { return input.checked; }
+    ).map(function (input) { return input.value; }));
   }
 
   function requestDiagnostics() {
@@ -132,6 +167,9 @@
     ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
+      input.addEventListener('change', update);
     });
     byId('refreshDiagnostics').addEventListener('click', requestDiagnostics);
     render();

@@ -5,10 +5,13 @@ namespace StreamDockSonar;
 public sealed record SonarSettings(
     string TargetRole,
     string StreamMix,
+    IReadOnlyList<string> OverviewTargets,
     int Step,
     string? TitleLabel,
     bool InvertKnob)
 {
+    public static readonly string[] AllTargetRoles = ["master", "game", "chatRender", "media", "aux", "chatCapture"];
+
     public static SonarSettings FromDictionary(Dictionary<string, object>? settings)
     {
         var legacyTarget = ReadString(settings, "target");
@@ -16,13 +19,16 @@ public sealed record SonarSettings(
                          ?? LegacyTargetToRole(legacyTarget)
                          ?? "game";
         var streamMix = NormalizeStreamMix(ReadString(settings, "streamMix") ?? LegacyTargetToStreamMix(legacyTarget));
+        var overviewTargets = NormalizeOverviewTargets(ReadStringList(settings, "overviewTargets"));
         var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
         var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, step, titleLabel, invertKnob);
+        return new SonarSettings(targetRole, streamMix, overviewTargets, step, titleLabel, invertKnob);
     }
 
-    public string DisplayName => TargetRole switch
+    public string DisplayName => DisplayNameFor(TargetRole);
+
+    public static string DisplayNameFor(string targetRole) => targetRole switch
     {
         "master" => "Master",
         "game" => "Game",
@@ -30,7 +36,18 @@ public sealed record SonarSettings(
         "media" => "Media",
         "aux" => "Aux",
         "chatCapture" => "Microphone",
-        _ => TargetRole
+        _ => targetRole
+    };
+
+    public static string ShortNameFor(string targetRole) => targetRole switch
+    {
+        "master" => "MST",
+        "game" => "GME",
+        "chatRender" => "CHT",
+        "media" => "MED",
+        "aux" => "AUX",
+        "chatCapture" => "MIC",
+        _ => targetRole.Length <= 3 ? targetRole.ToUpperInvariant() : targetRole[..3].ToUpperInvariant()
     };
 
     private static string? LegacyTargetToRole(string? target)
@@ -65,6 +82,19 @@ public sealed record SonarSettings(
         return string.Equals(streamMix, "streaming", StringComparison.OrdinalIgnoreCase) ? "streaming" : "monitoring";
     }
 
+    private static IReadOnlyList<string> NormalizeOverviewTargets(IEnumerable<string>? targets)
+    {
+        if (targets == null) return AllTargetRoles;
+        var known = AllTargetRoles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var normalized = targets
+            .Where(target => known.Contains(target))
+            .Select(target => AllTargetRoles.First(knownTarget => string.Equals(knownTarget, target, StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .ToArray();
+        return normalized.Length == 0 ? ["game"] : normalized;
+    }
+
     private static string? ReadString(Dictionary<string, object>? settings, string key)
     {
         if (settings == null || !settings.TryGetValue(key, out var value)) return null;
@@ -79,6 +109,20 @@ public sealed record SonarSettings(
         }
 
         return Convert.ToString(value);
+    }
+
+    private static IEnumerable<string>? ReadStringList(Dictionary<string, object>? settings, string key)
+    {
+        if (settings == null || !settings.TryGetValue(key, out var value)) return null;
+        if (value is IEnumerable<string> stringValues) return stringValues;
+        if (value is JsonElement element && element.ValueKind == JsonValueKind.Array)
+        {
+            return element.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString() ?? "");
+        }
+
+        return null;
     }
 
     private static int? ReadInt(Dictionary<string, object>? settings, string key)

@@ -105,6 +105,40 @@ public sealed class SonarClient : IDisposable
         return await PutAsync(mode, route, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
+    {
+        var mode = await GetModeAsync(cancellationToken);
+        using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
+        var states = new List<SonarOverviewState>();
+        foreach (var targetRole in targetRoles)
+        {
+            try
+            {
+                var state = ExtractState(settings.RootElement, mode, targetRole, streamMix);
+                states.Add(new SonarOverviewState(
+                    targetRole,
+                    SonarSettings.DisplayNameFor(targetRole),
+                    SonarSettings.ShortNameFor(targetRole),
+                    state.Volume,
+                    state.Muted,
+                    null));
+            }
+            catch (Exception ex)
+            {
+                states.Add(new SonarOverviewState(
+                    targetRole,
+                    SonarSettings.DisplayNameFor(targetRole),
+                    SonarSettings.ShortNameFor(targetRole),
+                    null,
+                    null,
+                    ex.Message));
+            }
+        }
+
+        LastResult = SonarOperationResult.Ok(mode, VolumeSettingsRoute(mode));
+        return states;
+    }
+
     public async Task<object> BuildDiagnosticsAsync(string targetRole = "game", string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var discovery = "";

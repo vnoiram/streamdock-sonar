@@ -41,6 +41,15 @@
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
+      "UUID": "local.streamdock.sonar.overview",
+      "Name": "Sonar Mixer Overview",
+      "Tooltip": "Show selected SteelSeries Sonar mixer channel states.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Overview", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
       "UUID": "local.streamdock.sonar.diagnostics",
       "Name": "Diagnostics",
       "Tooltip": "Show Sonar discovery and request diagnostics.",

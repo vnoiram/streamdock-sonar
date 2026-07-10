@@ -10,6 +10,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("stream streaming mode calls streaming route", StreamStreamingModeCallsStreamingAsync),
     ("mode mismatch 500 is user visible", ModeMismatch500IsUserVisibleAsync),
     ("diagnostics probes classic and streamer settings", DiagnosticsProbesClassicAndStreamerAsync),
+    ("overview settings normalize targets", OverviewSettingsNormalizeTargets),
+    ("overview selected targets render states", OverviewSelectedTargetsRenderStatesAsync),
+    ("overview missing target renders error cell", OverviewMissingTargetRendersErrorCellAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -88,6 +91,61 @@ static async Task DiagnosticsProbesClassicAndStreamerAsync()
 
     AssertEqual(true, server.Requests.Contains("/VolumeSettings/classic"), "classic probe");
     AssertEqual(true, server.Requests.Contains("/VolumeSettings/streamer"), "streamer probe");
+}
+
+static Task OverviewSettingsNormalizeTargets()
+{
+    var defaults = SonarSettings.FromDictionary(null);
+    AssertEqual(6, defaults.OverviewTargets.Count, "default overview target count");
+    AssertEqual("master", defaults.OverviewTargets[0], "default first target");
+
+    var empty = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["overviewTargets"] = Array.Empty<string>()
+    });
+    AssertEqual(1, empty.OverviewTargets.Count, "empty overview target count");
+    AssertEqual("game", empty.OverviewTargets[0], "empty overview target fallback");
+
+    var deduped = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["overviewTargets"] = new[] { "game", "game", "chatRender", "invalid", "media" }
+    });
+    AssertEqual(3, deduped.OverviewTargets.Count, "deduped overview target count");
+    AssertEqual("chatRender", deduped.OverviewTargets[1], "deduped second target");
+    return Task.CompletedTask;
+}
+
+static async Task OverviewSelectedTargetsRenderStatesAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+    var settings = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["streamMix"] = "streaming",
+        ["overviewTargets"] = new[] { "game", "chatRender" }
+    });
+
+    var states = await client.GetOverviewStatesAsync(settings.OverviewTargets, settings.StreamMix);
+    var image = SonarOverviewRenderer.BuildImageDataUrl(states);
+    var title = SonarOverviewRenderer.BuildFallbackTitle(states);
+
+    AssertEqual(2, states.Count, "overview state count");
+    AssertEqual("GME", states[0].ShortLabel, "first short label");
+    AssertEqual("70", states[0].ValueText, "first value");
+    AssertEqual("M", states[1].ValueText, "muted value");
+    AssertEqual(true, image.StartsWith("data:image/svg+xml;base64,", StringComparison.Ordinal), "svg data url");
+    AssertEqual(true, title.Contains("GME 70", StringComparison.Ordinal), "fallback title");
+}
+
+static async Task OverviewMissingTargetRendersErrorCellAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var states = await client.GetOverviewStatesAsync(new[] { "game", "media" }, "streaming");
+
+    AssertEqual("70", states[0].ValueText, "ok cell value");
+    AssertEqual("ERR", states[1].ValueText, "error cell value");
 }
 
 static Task LegacyStreamerTargetMapsStreamMix()

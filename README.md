@@ -10,6 +10,7 @@ Current version: `0.3.0`.
 
 - `Sonar Mixer Volume`: adjusts one Sonar mixer target. Key press raises volume by `Step`; knob rotation adjusts up/down.
 - `Sonar Mixer Mute`: toggles mute for one Sonar mixer target.
+- `Sonar Mixer Overview`: shows selected Sonar mixer target states on the Stream Dock key.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
 
 The normal Property Inspector target list uses user-facing roles:
@@ -27,6 +28,17 @@ When Sonar is in stream mode, `Stream mix` selects which GG mix is controlled:
 - `Streaming`
 
 Classic/stream mode itself is not exposed in the normal UI. Diagnostics is the place to inspect mode and route details.
+
+`Sonar Mixer Overview` can display 1 to 6 selected targets. It uses compact labels on the key:
+
+- `MST`: Master
+- `GME`: Game
+- `CHT`: Chat
+- `MED`: Media
+- `AUX`: Aux
+- `MIC`: Microphone
+
+Numeric values are volume percentages. `M` means muted, and `ERR` means that target could not be read.
 
 ## Runtime Behavior
 
