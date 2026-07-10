@@ -19,6 +19,7 @@ public sealed class SonarDiagnosticsHandler(
 {
     public override async Task OnWillAppearAsync()
     {
+        Log.Info($"Diagnostics willAppear context={Context}");
         await SetTitleAsync("Sonar\nDiag");
         await SendDiagnosticsAsync();
     }
@@ -30,6 +31,7 @@ public sealed class SonarDiagnosticsHandler(
 
     public override async Task OnKeyDownAsync()
     {
+        Log.Info($"Diagnostics keyDown context={Context}");
         await SendDiagnosticsAsync();
         await ShowOkAsync();
     }

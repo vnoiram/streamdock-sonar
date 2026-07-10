@@ -1,4 +1,5 @@
 using System.Text.Json;
+using log4net;
 using StreamDockSDK;
 using StreamDockSDK.Actions;
 
@@ -9,6 +10,7 @@ public abstract class SonarActionHandler(
     string context,
     Dictionary<string, object>? settings) : ActionHandler(connection, context, settings)
 {
+    protected readonly ILog Log = LogManager.GetLogger(typeof(SonarActionHandler));
     protected readonly SonarClient Client = new();
     protected SonarSettings SonarSettings { get; private set; } = SonarSettings.FromDictionary(settings);
 
@@ -16,6 +18,7 @@ public abstract class SonarActionHandler(
     {
         UpdateSettings(settings);
         SonarSettings = SonarSettings.FromDictionary(settings);
+        Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
         return UpdateDisplayAsync();
     }
 
@@ -54,6 +57,7 @@ public abstract class SonarActionHandler(
 
     protected async Task ShowErrorAsync(string message)
     {
+        Log.Warn($"Action error context={Context} targetRole={SonarSettings.TargetRole}: {message}");
         await SetTitleAsync($"{Label}\nError");
         await ShowAlertAsync();
         await Connection.SendToPropertyInspectorAsync(Context, new

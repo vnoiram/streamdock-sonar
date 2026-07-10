@@ -1,4 +1,5 @@
 using System.Reflection;
+using log4net;
 using StreamDockSDK;
 using StreamDockSDK.Attributes;
 
@@ -22,9 +23,16 @@ namespace StreamDockSonar;
 [SDPluginOS(Platform = "windows", MinimumVersion = "10")]
 public sealed class SonarPlugin : StreamDockPlugin
 {
+    private static readonly ILog Log = LogManager.GetLogger(typeof(SonarPlugin));
+
     public override void RegisterEventHandlers()
     {
         base.RegisterEventHandlers();
-        Connection.Connected += (_, _) => HandlerManager.DiscoverHandlers(Assembly.GetExecutingAssembly());
+        Connection.Connected += (_, _) =>
+        {
+            Log.Info("Connected to Stream Dock; discovering Sonar action handlers");
+            HandlerManager.DiscoverHandlers(Assembly.GetExecutingAssembly());
+        };
+        Connection.Disconnected += (_, _) => Log.Warn("Disconnected from Stream Dock");
     }
 }

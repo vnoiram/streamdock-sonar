@@ -34,7 +34,7 @@ static async Task ClassicModeDoesNotCallStreamerAsync()
     var result = await client.SetVolumeAsync("game", 40);
 
     AssertEqual(true, result.Success, "success");
-    AssertEqual("/volumeSettings/classic/game/Volume/0.40", server.LastPutPath, "classic put path");
+    AssertEqual("/VolumeSettings/classic/game/Volume/0.40", server.LastPutPath, "classic put path");
     AssertEqual(false, server.Requests.Any(path => path.Contains("/streamer/", StringComparison.OrdinalIgnoreCase)), "streamer route not called");
 }
 
@@ -46,7 +46,7 @@ static async Task StreamModeCallsStreamerAsync()
     var result = await client.SetMuteAsync("chatRender", true);
 
     AssertEqual(true, result.Success, "success");
-    AssertEqual("/volumeSettings/streamer/monitoring/chatRender/isMuted/true", server.LastPutPath, "stream put path");
+    AssertEqual("/VolumeSettings/streamer/monitoring/chatRender/isMuted/true", server.LastPutPath, "stream put path");
 }
 
 static async Task ModeMismatch500IsUserVisibleAsync()
@@ -142,29 +142,28 @@ sealed class FakeSonarServer : IDisposable
         }
 
         var path = context.Request.Url?.AbsolutePath ?? "";
-        if (path.Equals("/mode", StringComparison.OrdinalIgnoreCase))
+        if (path == "/mode")
         {
             await WriteAsync(context, $"\"{_mode}\"");
             return;
         }
 
-        if (path.Equals("/volumeSettings/classic", StringComparison.OrdinalIgnoreCase) ||
-            path.Equals("/volumeSettings/streamer", StringComparison.OrdinalIgnoreCase))
+        if (path is "/VolumeSettings/classic" or "/VolumeSettings/streamer")
         {
             await WriteAsync(context, """
             {
-              "masters": {
-                "classic": { "volume": 0.5, "muted": false },
-                "stream": { "monitoring": { "volume": 0.5, "muted": false } }
+              "Masters": {
+                "Classic": { "Volume": 0.5, "Muted": false },
+                "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
               },
-              "devices": {
-                "game": {
-                  "classic": { "volume": 0.5, "muted": false },
-                  "stream": { "monitoring": { "volume": 0.5, "muted": false } }
+              "Devices": {
+                "Game": {
+                  "Classic": { "Volume": 0.5, "Muted": false },
+                  "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
                 },
-                "chatRender": {
-                  "classic": { "volume": 0.5, "muted": false },
-                  "stream": { "monitoring": { "volume": 0.5, "muted": false } }
+                "ChatRender": {
+                  "Classic": { "Volume": 0.5, "Muted": false },
+                  "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
                 }
               }
             }

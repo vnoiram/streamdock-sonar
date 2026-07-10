@@ -76,7 +76,7 @@ public sealed class SonarClient : IDisposable
 
     public async Task<JsonDocument> GetVolumeSettingsAsync(string mode, CancellationToken cancellationToken = default)
     {
-        var route = NormalizeMode(mode) == "stream" ? "/volumeSettings/streamer" : "/volumeSettings/classic";
+        var route = VolumeSettingsRoute(mode);
         var document = await RequestJsonAsync(route, HttpMethod.Get, null, cancellationToken);
         LastResult = SonarOperationResult.Ok(mode, route);
         return document;
@@ -87,7 +87,7 @@ public sealed class SonarClient : IDisposable
         var mode = await GetModeAsync(cancellationToken);
         using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
         var state = ExtractState(settings.RootElement, mode, targetRole);
-        LastResult = SonarOperationResult.Ok(mode, NormalizeMode(mode) == "stream" ? "/volumeSettings/streamer" : "/volumeSettings/classic");
+        LastResult = SonarOperationResult.Ok(mode, VolumeSettingsRoute(mode));
         return state;
     }
 
@@ -205,15 +205,15 @@ public sealed class SonarClient : IDisposable
         if (targetRole == "master")
         {
             node = normalizedMode == "stream"
-                ? root.GetProperty("masters").GetProperty("stream").GetProperty("monitoring")
-                : root.GetProperty("masters").GetProperty("classic");
+                ? GetRequiredProperty(GetRequiredProperty(GetRequiredProperty(root, "masters"), "stream"), "monitoring")
+                : GetRequiredProperty(GetRequiredProperty(root, "masters"), "classic");
         }
         else
         {
-            var device = root.GetProperty("devices").GetProperty(targetRole);
+            var device = GetRequiredProperty(GetRequiredProperty(root, "devices"), targetRole);
             node = normalizedMode == "stream"
-                ? device.GetProperty("stream").GetProperty("monitoring")
-                : device.GetProperty("classic");
+                ? GetRequiredProperty(GetRequiredProperty(device, "stream"), "monitoring")
+                : GetRequiredProperty(device, "classic");
         }
 
         return new SonarChannelState(ReadVolume(node), ReadMuted(node));
@@ -221,15 +221,15 @@ public sealed class SonarClient : IDisposable
 
     private static double ReadVolume(JsonElement node)
     {
-        if (!node.TryGetProperty("volume", out var volume)) throw new InvalidOperationException("Sonar state is missing volume");
+        if (!TryGetPropertyIgnoreCase(node, "volume", out var volume)) throw new InvalidOperationException("Sonar state is missing volume");
         var scalar = volume.GetDouble();
         return scalar <= 1 ? scalar * 100 : scalar;
     }
 
     private static bool ReadMuted(JsonElement node)
     {
-        if (node.TryGetProperty("muted", out var muted)) return muted.GetBoolean();
-        if (node.TryGetProperty("isMuted", out var isMuted)) return isMuted.GetBoolean();
+        if (TryGetPropertyIgnoreCase(node, "muted", out var muted)) return muted.GetBoolean();
+        if (TryGetPropertyIgnoreCase(node, "isMuted", out var isMuted)) return isMuted.GetBoolean();
         return false;
     }
 
@@ -239,11 +239,16 @@ public sealed class SonarClient : IDisposable
         if (normalizedMode == "stream")
         {
             var field = operation == "mute" ? "isMuted" : "volume";
-            return $"/volumeSettings/streamer/monitoring/{HttpChannel(targetRole, normalizedMode)}/{field}/{value}";
+            return $"/VolumeSettings/streamer/monitoring/{HttpChannel(targetRole, normalizedMode)}/{field}/{value}";
         }
 
         var classicOperation = operation == "mute" ? "Mute" : "Volume";
-        return $"/volumeSettings/classic/{HttpChannel(targetRole, normalizedMode)}/{classicOperation}/{value}";
+        return $"/VolumeSettings/classic/{HttpChannel(targetRole, normalizedMode)}/{classicOperation}/{value}";
+    }
+
+    private static string VolumeSettingsRoute(string mode)
+    {
+        return NormalizeMode(mode) == "stream" ? "/VolumeSettings/streamer" : "/VolumeSettings/classic";
     }
 
     private static string HttpChannel(string targetRole, string mode)
@@ -270,13 +275,16 @@ public sealed class SonarClient : IDisposable
 
     private static string SummarizeVolumeShape(JsonElement root, string mode)
     {
-        var hasMasters = root.TryGetProperty("masters", out var masters);
-        var hasDevices = root.TryGetProperty("devices", out var devices);
+        var hasMasters = TryGetPropertyIgnoreCase(root, "masters", out var masters);
+        var hasDevices = TryGetPropertyIgnoreCase(root, "devices", out var devices);
         var deviceCount = hasDevices && devices.ValueKind == JsonValueKind.Object ? devices.EnumerateObject().Count() : 0;
+        var deviceKeys = hasDevices && devices.ValueKind == JsonValueKind.Object
+            ? string.Join(",", devices.EnumerateObject().Select(property => property.Name).Take(12))
+            : "";
         var masterKeys = hasMasters && masters.ValueKind == JsonValueKind.Object
             ? string.Join(",", masters.EnumerateObject().Select(property => property.Name))
             : "";
-        return $"mode={NormalizeMode(mode)} masters=[{masterKeys}] devices={deviceCount}";
+        return $"mode={NormalizeMode(mode)} masters=[{masterKeys}] devices={deviceCount} deviceKeys=[{deviceKeys}]";
     }
 
     private static string SummarizeError(HttpStatusCode statusCode, string body)
@@ -291,26 +299,50 @@ public sealed class SonarClient : IDisposable
     private static bool TryGetSonarWebServerAddress(JsonElement root, out string address)
     {
         address = "";
-        if (!root.TryGetProperty("subApps", out var subApps)) return false;
-        if (!subApps.TryGetProperty("sonar", out var sonar)) return false;
+        if (!TryGetPropertyIgnoreCase(root, "subApps", out var subApps)) return false;
+        if (!TryGetPropertyIgnoreCase(subApps, "sonar", out var sonar)) return false;
         if (IsFalse(sonar, "isEnabled") || IsFalse(sonar, "isReady") || IsFalse(sonar, "isRunning")) return false;
-        if (!sonar.TryGetProperty("metadata", out var metadata)) return false;
-        if (!metadata.TryGetProperty("webServerAddress", out var webServerAddress)) return false;
+        if (!TryGetPropertyIgnoreCase(sonar, "metadata", out var metadata)) return false;
+        if (!TryGetPropertyIgnoreCase(metadata, "webServerAddress", out var webServerAddress)) return false;
         address = webServerAddress.GetString() ?? "";
         return !string.IsNullOrWhiteSpace(address);
     }
 
     private static bool IsFalse(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out var property) &&
+        return TryGetPropertyIgnoreCase(element, propertyName, out var property) &&
                property.ValueKind is JsonValueKind.False;
     }
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+        return TryGetPropertyIgnoreCase(element, propertyName, out var property) && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
+    }
+
+    private static JsonElement GetRequiredProperty(JsonElement element, string propertyName)
+    {
+        if (TryGetPropertyIgnoreCase(element, propertyName, out var property)) return property;
+        throw new InvalidOperationException($"Sonar state is missing '{propertyName}'");
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement property)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var candidate in element.EnumerateObject())
+            {
+                if (string.Equals(candidate.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    property = candidate.Value;
+                    return true;
+                }
+            }
+        }
+
+        property = default;
+        return false;
     }
 
     private static IEnumerable<string> CandidateSubAppsUrls()

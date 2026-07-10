@@ -29,10 +29,21 @@ The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.
 
 The plugin reads `/mode` before writes:
 
-- `classic`: uses `/volumeSettings/classic/...` routes and never calls streamer routes.
-- `stream`: uses `/volumeSettings/streamer/monitoring/...` routes.
+- `classic`: uses `/VolumeSettings/classic/...` routes and never calls streamer routes.
+- `stream`: uses `/VolumeSettings/streamer/monitoring/...` routes.
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
+
+## Logs
+
+The C# plugin writes `streamdock-sonar.log` next to `StreamDockSonar.exe`:
+
+```text
+stream-dock-sonar.sdPlugin\plugin\streamdock-sonar.log
+```
+
+The log includes Stream Dock connection, action discovery, `willAppear`, key/knob events, Sonar discovery, Sonar request routes, and user-visible errors.
+If the process fails before logging is configured, `startup-error.log` is written in the same directory.
 
 ## Repository Layout
 

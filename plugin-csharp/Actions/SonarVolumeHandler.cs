@@ -23,6 +23,7 @@ public sealed class SonarVolumeHandler(
 
     public override async Task OnWillAppearAsync()
     {
+        Log.Info($"Volume willAppear context={Context} targetRole={SonarSettings.TargetRole}");
         await RefreshAsync();
     }
 
@@ -33,6 +34,7 @@ public sealed class SonarVolumeHandler(
 
     public override Task OnDialRotateAsync(int ticks, bool pressed)
     {
+        Log.Info($"Volume dialRotate context={Context} targetRole={SonarSettings.TargetRole} ticks={ticks} pressed={pressed}");
         lock (_lock)
         {
             _pendingTicks += SonarSettings.InvertKnob ? -ticks : ticks;
@@ -45,6 +47,7 @@ public sealed class SonarVolumeHandler(
 
     public override async Task OnKeyDownAsync()
     {
+        Log.Info($"Volume keyDown context={Context} targetRole={SonarSettings.TargetRole} step={SonarSettings.Step}");
         await ApplyDeltaAsync(SonarSettings.Step);
     }
 
@@ -73,6 +76,7 @@ public sealed class SonarVolumeHandler(
         {
             var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, DisposeToken);
             var next = Math.Clamp(state.Volume + delta, 0, 100);
+            Log.Info($"Volume set context={Context} targetRole={SonarSettings.TargetRole} from={state.Volume:0.##} to={next:0.##}");
             var result = await Client.SetVolumeAsync(SonarSettings.TargetRole, next, DisposeToken);
             if (!result.Success)
             {

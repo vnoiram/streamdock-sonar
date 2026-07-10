@@ -19,6 +19,7 @@ public sealed class SonarMuteHandler(
 {
     public override Task OnWillAppearAsync()
     {
+        Log.Info($"Mute willAppear context={Context} targetRole={SonarSettings.TargetRole}");
         return RefreshAsync();
     }
 
@@ -33,6 +34,7 @@ public sealed class SonarMuteHandler(
         {
             var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, DisposeToken);
             var nextMuted = !state.Muted;
+            Log.Info($"Mute toggle context={Context} targetRole={SonarSettings.TargetRole} from={state.Muted} to={nextMuted}");
             var result = await Client.SetMuteAsync(SonarSettings.TargetRole, nextMuted, DisposeToken);
             if (!result.Success)
             {

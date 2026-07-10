@@ -16,8 +16,8 @@
   }
 
   function connectElgatoStreamDeckSocket(inPort, inPluginUUID, inRegisterEvent, inInfo, inActionInfo) {
-    context = inPluginUUID;
     var actionInfo = parseJson(inActionInfo, {});
+    context = actionInfo.context || inPluginUUID;
     currentAction = actionInfo.action || '';
     settings = Object.assign(settings, normalizeSettings(actionInfo.payload && actionInfo.payload.settings || {}));
 
