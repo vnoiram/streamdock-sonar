@@ -8,6 +8,7 @@ public sealed record SonarSettings(
     IReadOnlyList<string> OverviewTargets,
     string ChatMixMode,
     int ChatMixStep,
+    string DeviceId,
     int Step,
     string? TitleLabel,
     bool InvertKnob)
@@ -24,10 +25,11 @@ public sealed record SonarSettings(
         var overviewTargets = NormalizeOverviewTargets(ReadStringList(settings, "overviewTargets"));
         var chatMixMode = NormalizeChatMixMode(ReadString(settings, "chatMixMode"));
         var chatMixStep = Math.Clamp(ReadInt(settings, "chatMixStep") ?? 10, 1, 100);
+        var deviceId = ReadString(settings, "deviceId") ?? "";
         var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
         var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, step, titleLabel, invertKnob);
+        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, step, titleLabel, invertKnob);
     }
 
     public string DisplayName => DisplayNameFor(TargetRole);

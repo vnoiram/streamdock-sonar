@@ -14,6 +14,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("overview selected targets render states", OverviewSelectedTargetsRenderStatesAsync),
     ("overview missing target renders error cell", OverviewMissingTargetRendersErrorCellAsync),
     ("chatmix get and set uses ChatMix route", ChatMixGetAndSetUsesRouteAsync),
+    ("classic output device uses classic redirection route", ClassicOutputDeviceUsesRedirectionRouteAsync),
+    ("stream output device uses stream redirection route", StreamOutputDeviceUsesRedirectionRouteAsync),
+    ("classic master output device is user visible error", ClassicMasterOutputDeviceIsUserVisibleErrorAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -161,6 +164,40 @@ static async Task ChatMixGetAndSetUsesRouteAsync()
     AssertEqual(true, result.Success, "chatmix set success");
     AssertEqual("/ChatMix", server.LastPutPath, "chatmix put path");
     AssertEqual("balance=-0.25", server.LastPutQuery, "chatmix put query");
+}
+
+static async Task ClassicOutputDeviceUsesRedirectionRouteAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetOutputDeviceAsync("game", "monitoring", "{game-device}", CancellationToken.None);
+
+    AssertEqual(true, result.Success, "classic output success");
+    AssertEqual("/ClassicRedirections/game/deviceId/%7Bgame-device%7D", server.LastPutPath, "classic output path");
+}
+
+static async Task StreamOutputDeviceUsesRedirectionRouteAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetOutputDeviceAsync("game", "streaming", "stream-device", CancellationToken.None);
+
+    AssertEqual(true, result.Success, "stream output success");
+    AssertEqual("/StreamRedirections/streaming/deviceId/stream-device", server.LastPutPath, "stream output path");
+}
+
+static async Task ClassicMasterOutputDeviceIsUserVisibleErrorAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetOutputDeviceAsync("master", "monitoring", "device", CancellationToken.None);
+
+    AssertEqual(false, result.Success, "classic master success");
+    if (result.ErrorSummary == null || !result.ErrorSummary.Contains("Master does not have", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException($"Expected master route error, got '{result.ErrorSummary}'");
 }
 
 static Task LegacyStreamerTargetMapsStreamMix()

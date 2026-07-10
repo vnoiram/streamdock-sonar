@@ -123,6 +123,26 @@ public sealed class SonarClient : IDisposable
         return await PutAsync("", $"/ChatMix?balance={normalized}", cancellationToken);
     }
 
+    public async Task<SonarOperationResult> SetOutputDeviceAsync(string targetRole, string streamMix, string deviceId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+            return SonarOperationResult.Error(null, null, null, "Sonar deviceId is required");
+
+        string? mode = null;
+        try
+        {
+            mode = await GetModeAsync(cancellationToken);
+            var route = BuildDeviceRoute(mode, targetRole, streamMix, deviceId);
+            return await PutAsync(mode, route, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var result = SonarOperationResult.Error(mode, null, null, ex.Message);
+            LastResult = result;
+            return result;
+        }
+    }
+
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var mode = await GetModeAsync(cancellationToken);
@@ -332,6 +352,19 @@ public sealed class SonarClient : IDisposable
 
         var classicOperation = operation == "mute" ? "Mute" : "Volume";
         return $"/VolumeSettings/classic/{HttpChannel(targetRole, normalizedMode)}/{classicOperation}/{value}";
+    }
+
+    private static string BuildDeviceRoute(string mode, string targetRole, string streamMix, string deviceId)
+    {
+        var escapedDeviceId = Uri.EscapeDataString(deviceId);
+        var normalizedMode = NormalizeMode(mode);
+        if (normalizedMode == "stream")
+            return $"/StreamRedirections/{NormalizeStreamMix(streamMix)}/deviceId/{escapedDeviceId}";
+
+        if (targetRole == "master")
+            throw new InvalidOperationException("Master does not have a classic output redirection route");
+
+        return $"/ClassicRedirections/{HttpChannel(targetRole, normalizedMode)}/deviceId/{escapedDeviceId}";
     }
 
     private static string VolumeSettingsRoute(string mode)
