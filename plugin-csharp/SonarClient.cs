@@ -143,6 +143,28 @@ public sealed class SonarClient : IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<SonarAudioDevice>> GetOutputDevicesAsync(CancellationToken cancellationToken = default)
+    {
+        using var document = await RequestJsonAsync("/audioDevices", HttpMethod.Get, null, cancellationToken);
+        var devices = new List<SonarAudioDevice>();
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Sonar audioDevices response is not an array");
+
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            var device = ReadAudioDevice(item);
+            if (string.Equals(device.DataFlow, "render", StringComparison.OrdinalIgnoreCase) &&
+                !device.IsVad &&
+                (string.IsNullOrWhiteSpace(device.State) || string.Equals(device.State, "active", StringComparison.OrdinalIgnoreCase)))
+            {
+                devices.Add(device);
+            }
+        }
+
+        LastResult = SonarOperationResult.Ok(null, "/audioDevices");
+        return devices;
+    }
+
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var mode = await GetModeAsync(cancellationToken);
@@ -327,6 +349,17 @@ public sealed class SonarClient : IDisposable
         return new SonarChannelState(ReadVolume(node), ReadMuted(node));
     }
 
+    private static SonarAudioDevice ReadAudioDevice(JsonElement item)
+    {
+        return new SonarAudioDevice(
+            TryGetString(item, "id") ?? "",
+            TryGetString(item, "friendlyName") ?? TryGetString(item, "name") ?? "",
+            TryGetString(item, "dataFlow") ?? "",
+            TryGetString(item, "role") ?? "",
+            TryGetString(item, "state") ?? "",
+            TryGetBool(item, "isVad") ?? false);
+    }
+
     private static double ReadVolume(JsonElement node)
     {
         if (!TryGetPropertyIgnoreCase(node, "volume", out var volume)) throw new InvalidOperationException("Sonar state is missing volume");
@@ -489,6 +522,13 @@ public sealed class SonarClient : IDisposable
     {
         return TryGetPropertyIgnoreCase(element, propertyName, out var property) && property.ValueKind == JsonValueKind.String
             ? property.GetString()
+            : null;
+    }
+
+    private static bool? TryGetBool(JsonElement element, string propertyName)
+    {
+        return TryGetPropertyIgnoreCase(element, propertyName, out var property) && property.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? property.GetBoolean()
             : null;
     }
 

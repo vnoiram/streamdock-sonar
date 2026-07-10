@@ -46,6 +46,14 @@ public abstract class SonarActionHandler : ActionHandler
             string.Equals(command.GetString(), "diagnostics", StringComparison.OrdinalIgnoreCase))
         {
             await SendDiagnosticsAsync();
+            return;
+        }
+
+        if (payload.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("command", out command) &&
+            string.Equals(command.GetString(), "devices", StringComparison.OrdinalIgnoreCase))
+        {
+            await SendOutputDevicesAsync();
         }
     }
 
@@ -94,6 +102,33 @@ public abstract class SonarActionHandler : ActionHandler
                 SonarSettings.InvertKnob
             }
         });
+    }
+
+    protected async Task SendOutputDevicesAsync()
+    {
+        try
+        {
+            var devices = await Client.GetOutputDevicesAsync(DisposeToken);
+            await Connection.SendToPropertyInspectorAsync(Context, new
+            {
+                type = "devices",
+                devices = devices.Select(device => new
+                {
+                    id = device.Id,
+                    name = device.FriendlyName,
+                    role = device.Role,
+                    dataFlow = device.DataFlow
+                }).ToArray()
+            });
+        }
+        catch (Exception ex)
+        {
+            await Connection.SendToPropertyInspectorAsync(Context, new
+            {
+                type = "error",
+                message = ex.Message
+            });
+        }
     }
 
     protected Task RefreshSharedStateAsync()

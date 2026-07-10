@@ -4,7 +4,7 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.1`.
+Current version: `0.3.2`.
 
 ## Actions
 
@@ -56,7 +56,7 @@ Output device switching follows Sonar's redirection routes:
 - `classic`: `/ClassicRedirections/{channel}/deviceId/{deviceId}`.
 - `stream`: `/StreamRedirections/{monitoring|streaming}/deviceId/{deviceId}`.
 
-The current `Sonar Output Device` action expects a Sonar `deviceId` to be pasted into the Property Inspector. Device discovery and selection UI are intentionally separate follow-up work.
+`Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
 The plugin does not use Windows primary device, WASAPI, or helper fallback for normal volume/mute operations.
@@ -124,7 +124,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.1.zip
+dist/release/streamdock-sonar-0.3.2.zip
 ```
 
 The packaged plugin directory is:

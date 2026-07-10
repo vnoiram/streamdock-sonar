@@ -48,8 +48,19 @@
       </select>
     </div>
     <div class="sdpi-item device-settings">
+      <div class="sdpi-item-label">Device</div>
+      <select id="deviceSelect" class="sdpi-item-value">
+        <option value="">Load devices...</option>
+      </select>
+    </div>
+    <div class="sdpi-item device-settings">
       <div class="sdpi-item-label">Device ID</div>
       <input id="deviceId" class="sdpi-item-value" placeholder="Sonar device id">
+    </div>
+    <div class="sdpi-item device-settings">
+      <div class="sdpi-item-label">Devices</div>
+      <button id="refreshDevices" class="sdpi-button" type="button">Refresh</button>
+      <span id="deviceStatus" class="sdpi-status">not loaded</span>
     </div>
     <div class="sdpi-item volume-settings">
       <div class="sdpi-item-label">Step</div>

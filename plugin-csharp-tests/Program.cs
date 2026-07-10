@@ -17,6 +17,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("classic output device uses classic redirection route", ClassicOutputDeviceUsesRedirectionRouteAsync),
     ("stream output device uses stream redirection route", StreamOutputDeviceUsesRedirectionRouteAsync),
     ("classic master output device is user visible error", ClassicMasterOutputDeviceIsUserVisibleErrorAsync),
+    ("output devices filters active non virtual render devices", OutputDevicesFiltersActiveRenderDevicesAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -200,6 +201,18 @@ static async Task ClassicMasterOutputDeviceIsUserVisibleErrorAsync()
         throw new InvalidOperationException($"Expected master route error, got '{result.ErrorSummary}'");
 }
 
+static async Task OutputDevicesFiltersActiveRenderDevicesAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var devices = await client.GetOutputDevicesAsync();
+
+    AssertEqual(1, devices.Count, "output device count");
+    AssertEqual("render-device", devices[0].Id, "output device id");
+    AssertEqual("Speakers", devices[0].FriendlyName, "output device name");
+}
+
 static Task LegacyStreamerTargetMapsStreamMix()
 {
     var settings = SonarSettings.FromDictionary(new Dictionary<string, object>
@@ -305,6 +318,19 @@ sealed class FakeSonarServer : IDisposable
         if (path == "/ChatMix")
         {
             await WriteAsync(context, """{"balance":0.5,"state":1}""");
+            return;
+        }
+
+        if (path == "/audioDevices")
+        {
+            await WriteAsync(context, """
+            [
+              { "id": "render-device", "friendlyName": "Speakers", "dataFlow": "render", "role": "none", "state": "active", "isVad": false },
+              { "id": "virtual-render", "friendlyName": "Sonar Game", "dataFlow": "render", "role": "game", "state": "active", "isVad": true },
+              { "id": "inactive-render", "friendlyName": "Disabled", "dataFlow": "render", "role": "none", "state": "disabled", "isVad": false },
+              { "id": "capture-device", "friendlyName": "Microphone", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false }
+            ]
+            """);
             return;
         }
 

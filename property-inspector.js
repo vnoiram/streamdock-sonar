@@ -4,6 +4,7 @@
   var websocket = null;
   var context = null;
   var currentAction = '';
+  var outputDevices = [];
   var settings = {
     targetRole: 'game',
     streamMix: 'monitoring',
@@ -31,6 +32,7 @@
       websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inPluginUUID }));
       render();
       requestDiagnostics();
+      requestDevices();
     };
     websocket.onmessage = function (event) {
       var message = parseJson(event.data, {});
@@ -125,6 +127,7 @@
     byId('chatMixMode').value = settings.chatMixMode;
     byId('chatMixStep').value = settings.chatMixStep;
     byId('deviceId').value = settings.deviceId;
+    renderDeviceOptions();
     byId('titleLabel').value = settings.titleLabel;
     byId('invertKnob').checked = !!settings.invertKnob;
     Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
@@ -173,6 +176,12 @@
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
   }
 
+  function updateFromDeviceSelect() {
+    var selected = byId('deviceSelect').value;
+    if (selected) byId('deviceId').value = selected;
+    update();
+  }
+
   function selectedOverviewTargets() {
     return normalizeOverviewTargets(Array.prototype.filter.call(
       document.querySelectorAll('input[name="overviewTarget"]'),
@@ -192,13 +201,48 @@
     byId('status').textContent = 'checking';
   }
 
+  function requestDevices() {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!isOutputDeviceAction()) return;
+    websocket.send(JSON.stringify({
+      event: 'sendToPlugin',
+      action: currentAction,
+      context: context,
+      payload: { command: 'devices' }
+    }));
+    byId('deviceStatus').textContent = 'loading';
+  }
+
   function handlePluginMessage(payload) {
     if (payload.type === 'diagnostics') {
       byId('status').textContent = payload.diagnostics && payload.diagnostics.mode ? 'ok' : 'error';
       byId('diagnosticsOutput').textContent = JSON.stringify(payload.diagnostics, null, 2);
+    } else if (payload.type === 'devices') {
+      outputDevices = Array.isArray(payload.devices) ? payload.devices : [];
+      byId('deviceStatus').textContent = outputDevices.length ? outputDevices.length + ' devices' : 'none';
+      renderDeviceOptions();
     } else if (payload.type === 'error') {
       byId('status').textContent = payload.message || 'error';
+      if (isOutputDeviceAction()) byId('deviceStatus').textContent = payload.message || 'error';
     }
+  }
+
+  function renderDeviceOptions() {
+    var select = byId('deviceSelect');
+    if (!select) return;
+    var current = byId('deviceId').value || settings.deviceId;
+    select.innerHTML = '';
+    var custom = document.createElement('option');
+    custom.value = '';
+    custom.textContent = outputDevices.length ? 'Manual deviceId' : 'No devices loaded';
+    select.appendChild(custom);
+    outputDevices.forEach(function (device) {
+      var option = document.createElement('option');
+      option.value = device.id || '';
+      option.textContent = device.name || device.id || 'Unknown device';
+      select.appendChild(option);
+    });
+    select.value = outputDevices.some(function (device) { return device.id === current; }) ? current : '';
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -206,10 +250,12 @@
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });
+    byId('deviceSelect').addEventListener('change', updateFromDeviceSelect);
     Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
       input.addEventListener('change', update);
     });
     byId('refreshDiagnostics').addEventListener('click', requestDiagnostics);
+    byId('refreshDevices').addEventListener('click', requestDevices);
     render();
   });
 
