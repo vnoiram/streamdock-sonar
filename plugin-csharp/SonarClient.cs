@@ -220,9 +220,9 @@ public sealed class SonarClient : IDisposable
         return await PutAsync("", route, cancellationToken);
     }
 
-    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, string rotationMode = "target", CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, string rotationMode = "target", bool allowExcludedDevices = false, CancellationToken cancellationToken = default)
     {
-        var devices = await GetOutputDevicesAsync(cancellationToken);
+        var devices = await GetRotatableOutputDevicesAsync(allowExcludedDevices, cancellationToken);
         if (devices.Count == 0)
             return SonarOperationResult.Error(null, null, null, "No Sonar output devices are available");
 
@@ -246,9 +246,9 @@ public sealed class SonarClient : IDisposable
         };
     }
 
-    public async Task<SonarOperationResult> RotateInputDeviceAsync(CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> RotateInputDeviceAsync(bool allowExcludedDevices = false, CancellationToken cancellationToken = default)
     {
-        var devices = await GetInputDevicesAsync(cancellationToken);
+        var devices = await GetRotatableInputDevicesAsync(allowExcludedDevices, cancellationToken);
         if (devices.Count == 0)
             return SonarOperationResult.Error(null, null, null, "No Sonar input devices are available");
 
@@ -259,7 +259,30 @@ public sealed class SonarClient : IDisposable
         return await SetInputDeviceAsync(devices[nextIndex].Id, cancellationToken);
     }
 
+    private async Task<IReadOnlyList<SonarAudioDevice>> GetRotatableOutputDevicesAsync(bool allowExcludedDevices, CancellationToken cancellationToken)
+    {
+        var devices = await GetAudioDevicesAsync("render", allowExcludedDevices, cancellationToken);
+        if (allowExcludedDevices) return devices;
+
+        var allowedIds = await GetFallbackDeviceIdsAsync("game", cancellationToken);
+        return devices.Where(device => allowedIds.Contains(device.Id)).ToArray();
+    }
+
+    private async Task<IReadOnlyList<SonarAudioDevice>> GetRotatableInputDevicesAsync(bool allowExcludedDevices, CancellationToken cancellationToken)
+    {
+        var devices = await GetAudioDevicesAsync("capture", allowExcludedDevices, cancellationToken);
+        if (allowExcludedDevices) return devices;
+
+        var allowedIds = await GetFallbackDeviceIdsAsync("chatCapture", cancellationToken);
+        return devices.Where(device => allowedIds.Contains(device.Id)).ToArray();
+    }
+
     private async Task<IReadOnlyList<SonarAudioDevice>> GetAudioDevicesAsync(string dataFlow, CancellationToken cancellationToken)
+    {
+        return await GetAudioDevicesAsync(dataFlow, false, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<SonarAudioDevice>> GetAudioDevicesAsync(string dataFlow, bool includeExcluded, CancellationToken cancellationToken)
     {
         using var document = await RequestJsonAsync("/audioDevices", HttpMethod.Get, null, cancellationToken);
         var devices = new List<SonarAudioDevice>();
@@ -271,7 +294,8 @@ public sealed class SonarClient : IDisposable
             var device = ReadAudioDevice(item);
             if (string.Equals(device.DataFlow, dataFlow, StringComparison.OrdinalIgnoreCase) &&
                 !device.IsVad &&
-                (string.IsNullOrWhiteSpace(device.State) || string.Equals(device.State, "active", StringComparison.OrdinalIgnoreCase)))
+                string.Equals(device.Role, "none", StringComparison.OrdinalIgnoreCase) &&
+                (includeExcluded || string.IsNullOrWhiteSpace(device.State) || string.Equals(device.State, "active", StringComparison.OrdinalIgnoreCase)))
             {
                 devices.Add(device);
             }
@@ -279,6 +303,21 @@ public sealed class SonarClient : IDisposable
 
         LastResult = SonarOperationResult.Ok(null, "/audioDevices");
         return devices;
+    }
+
+    private async Task<HashSet<string>> GetFallbackDeviceIdsAsync(string channel, CancellationToken cancellationToken)
+    {
+        using var document = await RequestJsonAsync("/FallbackSettings/lists", HttpMethod.Get, null, cancellationToken);
+        if (!TryGetPropertyIgnoreCase(document.RootElement, channel, out var devices) || devices.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException($"Sonar fallback settings are missing '{channel}'");
+
+        LastResult = SonarOperationResult.Ok(null, "/FallbackSettings/lists");
+        return devices
+            .EnumerateArray()
+            .Select(ReadFallbackDevice)
+            .Where(device => device.IsActive && !device.IsExcluded)
+            .Select(device => device.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<string> GetCurrentOutputDeviceIdAsync(string mode, string targetRole, string streamMix, CancellationToken cancellationToken)
@@ -558,6 +597,14 @@ public sealed class SonarClient : IDisposable
                 : TryGetString(item, "id") ?? "",
             TryGetString(item, "deviceId") ?? "",
             TryGetBool(item, "isRunning") ?? false);
+    }
+
+    private static SonarFallbackDevice ReadFallbackDevice(JsonElement item)
+    {
+        return new SonarFallbackDevice(
+            TryGetString(item, "id") ?? "",
+            TryGetBool(item, "isActive") ?? false,
+            TryGetBool(item, "isExcluded") ?? false);
     }
 
     private static double ReadVolume(JsonElement node)

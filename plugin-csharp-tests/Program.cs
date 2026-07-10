@@ -28,6 +28,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("classic rotate all output updates classic channels", ClassicRotateAllOutputUpdatesClassicChannelsAsync),
     ("stream rotate all output updates stream mixes", StreamRotateAllOutputUpdatesStreamMixesAsync),
     ("auto rotate output follows current sonar mode", AutoRotateOutputFollowsCurrentModeAsync),
+    ("rotate output can include excluded devices", RotateOutputCanIncludeExcludedDevicesAsync),
     ("classic rotate input uses next capture device", ClassicRotateInputUsesNextCaptureDeviceAsync),
     ("stream rotate input uses next capture device", StreamRotateInputUsesNextCaptureDeviceAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
@@ -347,6 +348,18 @@ static async Task AutoRotateOutputFollowsCurrentModeAsync()
     AssertEqual(2, streamServer.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream auto count");
 }
 
+static async Task RotateOutputCanIncludeExcludedDevicesAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring", "target", allowExcludedDevices: true);
+
+    AssertEqual(true, result.Success, "rotate with excluded success");
+    AssertEqual(false, server.Requests.Contains("/FallbackSettings/lists"), "fallback list not used");
+    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate with excluded path");
+}
+
 static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
 {
     using var server = FakeSonarServer.Start("classic");
@@ -490,6 +503,27 @@ sealed class FakeSonarServer : IDisposable
               { "id": "capture-device", "friendlyName": "Microphone", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false },
               { "id": "capture-device-2", "friendlyName": "USB Mic", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false }
             ]
+            """);
+            return;
+        }
+
+        if (path == "/FallbackSettings/lists")
+        {
+            await WriteAsync(context, """
+            {
+              "game": [
+                { "id": "render-device", "isActive": true, "isExcluded": false },
+                { "id": "render-device-2", "isActive": true, "isExcluded": false },
+                { "id": "inactive-render", "isActive": false, "isExcluded": false }
+              ],
+              "chatCapture": [
+                { "id": "capture-device", "isActive": true, "isExcluded": false },
+                { "id": "capture-device-2", "isActive": true, "isExcluded": false }
+              ],
+              "chatRender": [],
+              "media": [],
+              "aux": []
+            }
             """);
             return;
         }

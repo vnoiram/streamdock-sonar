@@ -17,6 +17,7 @@
     rotationMode: 'target',
     step: 2,
     titleLabel: '',
+    allowExcludedDevices: false,
     invertKnob: false
   };
 
@@ -72,6 +73,7 @@
     normalized.rotationMode = normalizeRotationMode(normalized.rotationMode);
     normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
     normalized.titleLabel = normalized.titleLabel || '';
+    normalized.allowExcludedDevices = normalized.allowExcludedDevices === true || normalized.allowExcludedDevices === 'true';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
     return normalized;
   }
@@ -165,6 +167,7 @@
     renderDeviceOptions();
     renderProfileOptions();
     byId('titleLabel').value = settings.titleLabel;
+    byId('allowExcludedDevices').checked = !!settings.allowExcludedDevices;
     byId('invertKnob').checked = !!settings.invertKnob;
     Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
       input.checked = settings.overviewTargets.indexOf(input.value) !== -1;
@@ -193,6 +196,9 @@
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-settings'), function (element) {
       element.classList.toggle('is-hidden', !isRotateOutput);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.rotation-common-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isRotateOutput && !isRotateInput);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.device-settings'), function (element) {
       element.classList.toggle('is-hidden', !isDeviceAction());
@@ -225,6 +231,7 @@
     settings.rotationMode = normalizeRotationMode(byId('rotationMode').value);
     settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
     settings.titleLabel = byId('titleLabel').value.trim();
+    settings.allowExcludedDevices = byId('allowExcludedDevices').checked;
     settings.invertKnob = byId('invertKnob').checked;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
     if (isProfileAction()) requestProfiles();
@@ -336,7 +343,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode'].forEach(function (id) {
+    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode', 'allowExcludedDevices'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

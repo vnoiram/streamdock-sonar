@@ -30,6 +30,7 @@ public sealed class SonarRotateOutputDeviceHandler(
             SonarSettings.TargetRole,
             SonarSettings.StreamMix,
             SonarSettings.RotationMode,
+            SonarSettings.AllowExcludedDevices,
             DisposeToken);
         if (!result.Success)
         {

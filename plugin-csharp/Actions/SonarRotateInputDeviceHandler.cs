@@ -26,7 +26,7 @@ public sealed class SonarRotateInputDeviceHandler(
     public override async Task OnKeyDownAsync()
     {
         Log.Info($"RotateInput keyDown context={Context}");
-        var result = await Client.RotateInputDeviceAsync(DisposeToken);
+        var result = await Client.RotateInputDeviceAsync(SonarSettings.AllowExcludedDevices, DisposeToken);
         if (!result.Success)
         {
             await ShowErrorAsync(result.ErrorSummary ?? "Sonar input device rotation failed");

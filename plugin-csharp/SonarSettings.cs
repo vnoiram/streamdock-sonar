@@ -13,6 +13,7 @@ public sealed record SonarSettings(
     string RotationMode,
     int Step,
     string? TitleLabel,
+    bool AllowExcludedDevices,
     bool InvertKnob)
 {
     public static readonly string[] AllTargetRoles = ["master", "game", "chatRender", "media", "aux", "chatCapture"];
@@ -32,8 +33,9 @@ public sealed record SonarSettings(
         var rotationMode = NormalizeRotationMode(ReadString(settings, "rotationMode"));
         var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
+        var allowExcludedDevices = ReadBool(settings, "allowExcludedDevices") ?? false;
         var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, rotationMode, step, titleLabel, invertKnob);
+        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, rotationMode, step, titleLabel, allowExcludedDevices, invertKnob);
     }
 
     public string DisplayName => DisplayNameFor(TargetRole);
