@@ -57,6 +57,17 @@ public abstract class SonarActionHandler : ActionHandler
                 ? dataFlowElement.GetString()
                 : "render";
             await SendDevicesAsync(dataFlow);
+            return;
+        }
+
+        if (payload.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("command", out command) &&
+            string.Equals(command.GetString(), "profiles", StringComparison.OrdinalIgnoreCase))
+        {
+            var targetRole = payload.TryGetProperty("targetRole", out var targetElement) && targetElement.ValueKind == JsonValueKind.String
+                ? targetElement.GetString()
+                : SonarSettings.TargetRole;
+            await SendProfilesAsync(targetRole);
         }
     }
 
@@ -124,6 +135,37 @@ public abstract class SonarActionHandler : ActionHandler
                     name = device.FriendlyName,
                     role = device.Role,
                     dataFlow = device.DataFlow
+                }).ToArray()
+            });
+        }
+        catch (Exception ex)
+        {
+            await Connection.SendToPropertyInspectorAsync(Context, new
+            {
+                type = "error",
+                message = ex.Message
+            });
+        }
+    }
+
+    protected async Task SendProfilesAsync(string? targetRole)
+    {
+        try
+        {
+            var normalizedTarget = string.IsNullOrWhiteSpace(targetRole) ? SonarSettings.TargetRole : targetRole;
+            var profiles = await Client.GetConfigProfilesAsync(normalizedTarget!, DisposeToken);
+            var selected = await Client.GetSelectedConfigProfileAsync(normalizedTarget!, DisposeToken);
+            await Connection.SendToPropertyInspectorAsync(Context, new
+            {
+                type = "profiles",
+                targetRole = normalizedTarget,
+                selectedProfileId = selected?.Id,
+                profiles = profiles.Select(profile => new
+                {
+                    id = profile.Id,
+                    name = profile.Name,
+                    virtualAudioDevice = profile.VirtualAudioDevice,
+                    isPreset = profile.IsPreset
                 }).ToArray()
             });
         }

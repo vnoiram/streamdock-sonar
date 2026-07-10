@@ -21,6 +21,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("classic input device uses mic redirection route", ClassicInputDeviceUsesMicRedirectionRouteAsync),
     ("stream input device uses mic redirection route", StreamInputDeviceUsesMicRedirectionRouteAsync),
     ("input devices filters active non virtual capture devices", InputDevicesFiltersActiveCaptureDevicesAsync),
+    ("config profiles filter by target role", ConfigProfilesFilterByTargetRoleAsync),
+    ("select config profile uses select route", SelectConfigProfileUsesRouteAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -250,6 +252,30 @@ static async Task InputDevicesFiltersActiveCaptureDevicesAsync()
     AssertEqual("Microphone", devices[0].FriendlyName, "input device name");
 }
 
+static async Task ConfigProfilesFilterByTargetRoleAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var profiles = await client.GetConfigProfilesAsync("game");
+    var selected = await client.GetSelectedConfigProfileAsync("game");
+
+    AssertEqual(2, profiles.Count, "game profile count");
+    AssertEqual("game-custom", profiles[0].Id, "custom profiles sorted first");
+    AssertEqual("game-selected", selected?.Id, "selected game profile");
+}
+
+static async Task SelectConfigProfileUsesRouteAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SelectConfigProfileAsync("game-custom");
+
+    AssertEqual(true, result.Success, "profile select success");
+    AssertEqual("/Configs/game-custom/select", server.LastPutPath, "profile select path");
+}
+
 static Task LegacyStreamerTargetMapsStreamMix()
 {
     var settings = SonarSettings.FromDictionary(new Dictionary<string, object>
@@ -366,6 +392,29 @@ sealed class FakeSonarServer : IDisposable
               { "id": "virtual-render", "friendlyName": "Sonar Game", "dataFlow": "render", "role": "game", "state": "active", "isVad": true },
               { "id": "inactive-render", "friendlyName": "Disabled", "dataFlow": "render", "role": "none", "state": "disabled", "isVad": false },
               { "id": "capture-device", "friendlyName": "Microphone", "dataFlow": "capture", "role": "none", "state": "active", "isVad": false }
+            ]
+            """);
+            return;
+        }
+
+        if (path == "/Configs")
+        {
+            await WriteAsync(context, """
+            [
+              { "id": "game-custom", "name": "Game Custom", "virtualAudioDevice": "game", "isPreset": false },
+              { "id": "game-preset", "name": "Game Preset", "virtualAudioDevice": "game", "isPreset": true },
+              { "id": "chat-profile", "name": "Chat Profile", "virtualAudioDevice": "chatRender", "isPreset": false }
+            ]
+            """);
+            return;
+        }
+
+        if (path == "/Configs/selected")
+        {
+            await WriteAsync(context, """
+            [
+              { "id": "game-selected", "name": "Game Selected", "virtualAudioDevice": "game", "isPreset": false },
+              { "id": "chat-profile", "name": "Chat Profile", "virtualAudioDevice": "chatRender", "isPreset": false }
             ]
             """);
             return;

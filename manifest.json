@@ -2,7 +2,7 @@
   "Name": "Stream Dock Sonar",
   "Description": "Control SteelSeries GG Sonar mixer volume and mute directly.",
   "Author": "local",
-  "Version": "0.3.4",
+  "Version": "0.3.5",
   "SDKVersion": 1,
   "CodePathWin": "plugin/StreamDockSonar.exe",
   "Icon": "icons/plugin",
@@ -83,6 +83,15 @@
       "Controllers": ["Keypad"],
       "Icon": "icons/plugin",
       "States": [{ "Title": "Input", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.sonar.profile",
+      "Name": "Sonar Profile",
+      "Tooltip": "Set a SteelSeries Sonar channel profile.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Profile", "Image": "icons/plugin" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {

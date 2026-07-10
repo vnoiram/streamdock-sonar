@@ -1,6 +1,6 @@
 {
   "name": "streamdock-sonar",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "scripts": {
     "check": "node --check property-inspector.js && node --check scripts/package-plugin.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\"",

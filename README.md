@@ -4,7 +4,7 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.4`.
+Current version: `0.3.5`.
 
 ## Actions
 
@@ -15,6 +15,7 @@ Current version: `0.3.4`.
 - `Sonar ChatMix Dial`: adjusts ChatMix with a knob; dial press resets to center.
 - `Sonar Output Device`: switches a Sonar output device by configured Sonar `deviceId`.
 - `Sonar Input Device`: switches the Sonar microphone input device by configured Sonar `deviceId`.
+- `Sonar Profile`: selects a Sonar EQ/profile for a mixer target.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
 
 The normal Property Inspector target list uses user-facing roles:
@@ -60,6 +61,7 @@ Output device switching follows Sonar's redirection routes:
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/mic/deviceId/{deviceId}` in classic mode and `/StreamRedirections/mic/deviceId/{deviceId}` in stream mode.
+`Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
 The plugin does not use Windows primary device, WASAPI, or helper fallback for normal volume/mute operations.
@@ -127,7 +129,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.4.zip
+dist/release/streamdock-sonar-0.3.5.zip
 ```
 
 The packaged plugin directory is:

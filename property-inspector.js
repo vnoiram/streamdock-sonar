@@ -5,6 +5,7 @@
   var context = null;
   var currentAction = '';
   var outputDevices = [];
+  var profiles = [];
   var settings = {
     targetRole: 'game',
     streamMix: 'monitoring',
@@ -12,6 +13,7 @@
     chatMixMode: 'chat',
     chatMixStep: 10,
     deviceId: '',
+    targetProfileId: '',
     step: 2,
     titleLabel: '',
     invertKnob: false
@@ -33,6 +35,7 @@
       render();
       requestDiagnostics();
       requestDevices();
+      requestProfiles();
     };
     websocket.onmessage = function (event) {
       var message = parseJson(event.data, {});
@@ -64,6 +67,7 @@
     normalized.chatMixMode = normalizeChatMixMode(normalized.chatMixMode);
     normalized.chatMixStep = Math.max(1, Math.min(100, Number(normalized.chatMixStep) || 10));
     normalized.deviceId = normalized.deviceId || '';
+    normalized.targetProfileId = normalized.targetProfileId || '';
     normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
@@ -132,6 +136,10 @@
     return isOutputDeviceAction() || isInputDeviceAction();
   }
 
+  function isProfileAction() {
+    return currentAction === 'local.streamdock.sonar.profile';
+  }
+
   function render() {
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
@@ -140,6 +148,7 @@
     byId('chatMixStep').value = settings.chatMixStep;
     byId('deviceId').value = settings.deviceId;
     renderDeviceOptions();
+    renderProfileOptions();
     byId('titleLabel').value = settings.titleLabel;
     byId('invertKnob').checked = !!settings.invertKnob;
     Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
@@ -151,6 +160,7 @@
     var isChatMixDial = isChatMixDialAction();
     var isOutputDevice = isOutputDeviceAction();
     var isInputDevice = isInputDeviceAction();
+    var isProfile = isProfileAction();
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
       element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isDiagnostics);
@@ -167,11 +177,14 @@
     Array.prototype.forEach.call(document.querySelectorAll('.device-settings'), function (element) {
       element.classList.toggle('is-hidden', !isDeviceAction());
     });
+    Array.prototype.forEach.call(document.querySelectorAll('.profile-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isProfile);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.volume-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isDiagnostics);
+      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isDiagnostics);
     });
     byId('chatMixMode').closest('.sdpi-item').classList.toggle('is-hidden', !isChatMix);
-    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isDiagnostics);
+    byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isDiagnostics);
     byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
 
@@ -188,10 +201,12 @@
     settings.chatMixMode = byId('chatMixMode').value;
     settings.chatMixStep = Math.max(1, Math.min(100, Number(byId('chatMixStep').value) || 10));
     settings.deviceId = byId('deviceId').value.trim();
+    settings.targetProfileId = byId('targetProfileId').value;
     settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.invertKnob = byId('invertKnob').checked;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
+    if (isProfileAction()) requestProfiles();
   }
 
   function updateFromDeviceSelect() {
@@ -231,6 +246,18 @@
     byId('deviceStatus').textContent = 'loading';
   }
 
+  function requestProfiles() {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!isProfileAction()) return;
+    websocket.send(JSON.stringify({
+      event: 'sendToPlugin',
+      action: currentAction,
+      context: context,
+      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole }
+    }));
+    byId('profileStatus').textContent = 'loading';
+  }
+
   function handlePluginMessage(payload) {
     if (payload.type === 'diagnostics') {
       byId('status').textContent = payload.diagnostics && payload.diagnostics.mode ? 'ok' : 'error';
@@ -239,9 +266,15 @@
       outputDevices = Array.isArray(payload.devices) ? payload.devices : [];
       byId('deviceStatus').textContent = outputDevices.length ? outputDevices.length + ' devices' : 'none';
       renderDeviceOptions();
+    } else if (payload.type === 'profiles') {
+      profiles = Array.isArray(payload.profiles) ? payload.profiles : [];
+      if (!settings.targetProfileId && payload.selectedProfileId) settings.targetProfileId = payload.selectedProfileId;
+      byId('profileStatus').textContent = profiles.length ? profiles.length + ' profiles' : 'none';
+      renderProfileOptions();
     } else if (payload.type === 'error') {
       byId('status').textContent = payload.message || 'error';
       if (isDeviceAction()) byId('deviceStatus').textContent = payload.message || 'error';
+      if (isProfileAction()) byId('profileStatus').textContent = payload.message || 'error';
     }
   }
 
@@ -263,8 +296,26 @@
     select.value = outputDevices.some(function (device) { return device.id === current; }) ? current : '';
   }
 
+  function renderProfileOptions() {
+    var select = byId('targetProfileId');
+    if (!select) return;
+    var current = settings.targetProfileId;
+    select.innerHTML = '';
+    var empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = profiles.length ? 'Select profile' : 'No profiles loaded';
+    select.appendChild(empty);
+    profiles.forEach(function (profile) {
+      var option = document.createElement('option');
+      option.value = profile.id || '';
+      option.textContent = profile.name || profile.id || 'Unknown profile';
+      select.appendChild(option);
+    });
+    select.value = profiles.some(function (profile) { return profile.id === current; }) ? current : '';
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId'].forEach(function (id) {
+    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });
@@ -274,6 +325,7 @@
     });
     byId('refreshDiagnostics').addEventListener('click', requestDiagnostics);
     byId('refreshDevices').addEventListener('click', requestDevices);
+    byId('refreshProfiles').addEventListener('click', requestProfiles);
     render();
   });
 

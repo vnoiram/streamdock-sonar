@@ -173,6 +173,53 @@ public sealed class SonarClient : IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<SonarConfigProfile>> GetConfigProfilesAsync(string targetRole, CancellationToken cancellationToken = default)
+    {
+        if (targetRole == "master")
+            return Array.Empty<SonarConfigProfile>();
+
+        using var document = await RequestJsonAsync("/Configs", HttpMethod.Get, null, cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Sonar Configs response is not an array");
+
+        var virtualAudioDevice = HttpChannel(targetRole, "classic");
+        var profiles = document.RootElement
+            .EnumerateArray()
+            .Select(ReadConfigProfile)
+            .Where(profile => string.Equals(profile.VirtualAudioDevice, virtualAudioDevice, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(profile => profile.IsPreset)
+            .ThenBy(profile => profile.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        LastResult = SonarOperationResult.Ok(null, "/Configs");
+        return profiles;
+    }
+
+    public async Task<SonarConfigProfile?> GetSelectedConfigProfileAsync(string targetRole, CancellationToken cancellationToken = default)
+    {
+        if (targetRole == "master") return null;
+
+        using var document = await RequestJsonAsync("/Configs/selected", HttpMethod.Get, null, cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Sonar Configs/selected response is not an array");
+
+        var virtualAudioDevice = HttpChannel(targetRole, "classic");
+        LastResult = SonarOperationResult.Ok(null, "/Configs/selected");
+        return document.RootElement
+            .EnumerateArray()
+            .Select(ReadConfigProfile)
+            .FirstOrDefault(profile => string.Equals(profile.VirtualAudioDevice, virtualAudioDevice, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public async Task<SonarOperationResult> SelectConfigProfileAsync(string profileId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+            return SonarOperationResult.Error(null, null, null, "Sonar profile id is required");
+
+        var route = $"/Configs/{Uri.EscapeDataString(profileId)}/select";
+        return await PutAsync("", route, cancellationToken);
+    }
+
     private async Task<IReadOnlyList<SonarAudioDevice>> GetAudioDevicesAsync(string dataFlow, CancellationToken cancellationToken)
     {
         using var document = await RequestJsonAsync("/audioDevices", HttpMethod.Get, null, cancellationToken);
@@ -388,6 +435,15 @@ public sealed class SonarClient : IDisposable
             TryGetString(item, "role") ?? "",
             TryGetString(item, "state") ?? "",
             TryGetBool(item, "isVad") ?? false);
+    }
+
+    private static SonarConfigProfile ReadConfigProfile(JsonElement item)
+    {
+        return new SonarConfigProfile(
+            TryGetString(item, "id") ?? "",
+            TryGetString(item, "name") ?? "",
+            TryGetString(item, "virtualAudioDevice") ?? "",
+            TryGetBool(item, "isPreset") ?? false);
     }
 
     private static double ReadVolume(JsonElement node)
