@@ -82,40 +82,41 @@ public sealed class SonarClient : IDisposable
         return document;
     }
 
-    public async Task<SonarChannelState> GetChannelStateAsync(string targetRole, CancellationToken cancellationToken = default)
+    public async Task<SonarChannelState> GetChannelStateAsync(string targetRole, string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var mode = await GetModeAsync(cancellationToken);
         using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
-        var state = ExtractState(settings.RootElement, mode, targetRole);
+        var state = ExtractState(settings.RootElement, mode, targetRole, streamMix);
         LastResult = SonarOperationResult.Ok(mode, VolumeSettingsRoute(mode));
         return state;
     }
 
-    public async Task<SonarOperationResult> SetVolumeAsync(string targetRole, double value, CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> SetVolumeAsync(string targetRole, double value, string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var mode = await GetModeAsync(cancellationToken);
-        var route = BuildPutRoute(mode, targetRole, "volume", Math.Clamp(value / 100.0, 0, 1).ToString("0.00"));
+        var route = BuildPutRoute(mode, targetRole, streamMix, "volume", Math.Clamp(value / 100.0, 0, 1).ToString("0.00"));
         return await PutAsync(mode, route, cancellationToken);
     }
 
-    public async Task<SonarOperationResult> SetMuteAsync(string targetRole, bool muted, CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> SetMuteAsync(string targetRole, bool muted, string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var mode = await GetModeAsync(cancellationToken);
-        var route = BuildPutRoute(mode, targetRole, "mute", muted ? "true" : "false");
+        var route = BuildPutRoute(mode, targetRole, streamMix, "mute", muted ? "true" : "false");
         return await PutAsync(mode, route, cancellationToken);
     }
 
-    public async Task<object> BuildDiagnosticsAsync(CancellationToken cancellationToken = default)
+    public async Task<object> BuildDiagnosticsAsync(string targetRole = "game", string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var discovery = "";
         var mode = "";
-        var shape = "";
+        object? classicProbe = null;
+        object? streamerProbe = null;
         try
         {
             discovery = await DiscoverAsync(cancellationToken);
             mode = await GetModeAsync(cancellationToken);
-            using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
-            shape = SummarizeVolumeShape(settings.RootElement, mode);
+            classicProbe = await BuildVolumeSettingsProbeAsync("classic", targetRole, streamMix, cancellationToken);
+            streamerProbe = await BuildVolumeSettingsProbeAsync("stream", targetRole, streamMix, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -126,11 +127,17 @@ public sealed class SonarClient : IDisposable
         {
             discovery,
             mode,
-            volumeSettings = shape,
+            targetRole,
+            streamMix = NormalizeStreamMix(streamMix),
+            probes = new
+            {
+                classic = classicProbe,
+                streamer = streamerProbe
+            },
             lastRequest = new
             {
                 LastResult?.Route,
-                LastResult?.StatusCode,
+                statusCode = LastResult?.StatusCode,
                 LastResult?.ErrorSummary,
                 LastResult?.Success
             }
@@ -143,6 +150,7 @@ public sealed class SonarClient : IDisposable
         {
             using var response = await SendAsync(route, HttpMethod.Put, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            Log.Info($"Sonar response PUT {route} status={(int)response.StatusCode}");
             if (!response.IsSuccessStatusCode)
             {
                 var error = SummarizeError(response.StatusCode, body);
@@ -167,6 +175,7 @@ public sealed class SonarClient : IDisposable
     {
         using var response = await SendAsync(route, method, cancellationToken, content);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        Log.Info($"Sonar response {method} {route} status={(int)response.StatusCode}");
         if (!response.IsSuccessStatusCode)
         {
             LastResult = SonarOperationResult.Error(null, route, (int)response.StatusCode, SummarizeError(response.StatusCode, body));
@@ -175,6 +184,32 @@ public sealed class SonarClient : IDisposable
 
         LastResult = SonarOperationResult.Ok(null, route, (int)response.StatusCode);
         return JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+    }
+
+    private async Task<object> BuildVolumeSettingsProbeAsync(string mode, string targetRole, string streamMix, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
+            return new
+            {
+                ok = true,
+                route = VolumeSettingsRoute(mode),
+                shape = SummarizeVolumeShape(settings.RootElement, mode),
+                selectedState = SummarizeSelectedState(settings.RootElement, mode, targetRole, streamMix),
+                mixProbe = NormalizeMode(mode) == "stream" ? SummarizeStreamMixes(settings.RootElement, targetRole) : null
+            };
+        }
+        catch (Exception ex)
+        {
+            return new
+            {
+                ok = false,
+                route = VolumeSettingsRoute(mode),
+                LastResult?.StatusCode,
+                error = ex.Message
+            };
+        }
     }
 
     private async Task<HttpResponseMessage> SendAsync(string route, HttpMethod method, CancellationToken cancellationToken, HttpContent? content = null)
@@ -198,21 +233,22 @@ public sealed class SonarClient : IDisposable
         return JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
     }
 
-    private static SonarChannelState ExtractState(JsonElement root, string mode, string targetRole)
+    private static SonarChannelState ExtractState(JsonElement root, string mode, string targetRole, string streamMix)
     {
         var normalizedMode = NormalizeMode(mode);
+        var normalizedMix = NormalizeStreamMix(streamMix);
         JsonElement node;
         if (targetRole == "master")
         {
             node = normalizedMode == "stream"
-                ? GetRequiredProperty(GetRequiredProperty(GetRequiredProperty(root, "masters"), "stream"), "monitoring")
+                ? GetRequiredProperty(GetRequiredProperty(GetRequiredProperty(root, "masters"), "stream"), normalizedMix)
                 : GetRequiredProperty(GetRequiredProperty(root, "masters"), "classic");
         }
         else
         {
             var device = GetRequiredProperty(GetRequiredProperty(root, "devices"), targetRole);
             node = normalizedMode == "stream"
-                ? GetRequiredProperty(GetRequiredProperty(device, "stream"), "monitoring")
+                ? GetRequiredProperty(GetRequiredProperty(device, "stream"), normalizedMix)
                 : GetRequiredProperty(device, "classic");
         }
 
@@ -233,13 +269,13 @@ public sealed class SonarClient : IDisposable
         return false;
     }
 
-    private static string BuildPutRoute(string mode, string targetRole, string operation, string value)
+    private static string BuildPutRoute(string mode, string targetRole, string streamMix, string operation, string value)
     {
         var normalizedMode = NormalizeMode(mode);
         if (normalizedMode == "stream")
         {
             var field = operation == "mute" ? "isMuted" : "volume";
-            return $"/VolumeSettings/streamer/monitoring/{HttpChannel(targetRole, normalizedMode)}/{field}/{value}";
+            return $"/VolumeSettings/streamer/{NormalizeStreamMix(streamMix)}/{HttpChannel(targetRole, normalizedMode)}/{field}/{value}";
         }
 
         var classicOperation = operation == "mute" ? "Mute" : "Volume";
@@ -273,6 +309,11 @@ public sealed class SonarClient : IDisposable
             : "classic";
     }
 
+    private static string NormalizeStreamMix(string? streamMix)
+    {
+        return string.Equals(streamMix, "streaming", StringComparison.OrdinalIgnoreCase) ? "streaming" : "monitoring";
+    }
+
     private static string SummarizeVolumeShape(JsonElement root, string mode)
     {
         var hasMasters = TryGetPropertyIgnoreCase(root, "masters", out var masters);
@@ -285,6 +326,51 @@ public sealed class SonarClient : IDisposable
             ? string.Join(",", masters.EnumerateObject().Select(property => property.Name))
             : "";
         return $"mode={NormalizeMode(mode)} masters=[{masterKeys}] devices={deviceCount} deviceKeys=[{deviceKeys}]";
+    }
+
+    private static object SummarizeSelectedState(JsonElement root, string mode, string targetRole, string streamMix)
+    {
+        try
+        {
+            var state = ExtractState(root, mode, targetRole, streamMix);
+            return new
+            {
+                ok = true,
+                volume = Math.Round(state.Volume, 1),
+                muted = state.Muted
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { ok = false, error = ex.Message };
+        }
+    }
+
+    private static object SummarizeStreamMixes(JsonElement root, string targetRole)
+    {
+        return new
+        {
+            monitoring = SummarizeStreamMix(root, targetRole, "monitoring"),
+            streaming = SummarizeStreamMix(root, targetRole, "streaming")
+        };
+    }
+
+    private static object SummarizeStreamMix(JsonElement root, string targetRole, string streamMix)
+    {
+        try
+        {
+            var state = ExtractState(root, "stream", targetRole, streamMix);
+            return new
+            {
+                present = true,
+                volume = Math.Round(state.Volume, 1),
+                muted = state.Muted
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { present = false, error = ex.Message };
+        }
     }
 
     private static string SummarizeError(HttpStatusCode statusCode, string body)

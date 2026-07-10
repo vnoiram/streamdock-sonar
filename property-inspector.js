@@ -6,6 +6,7 @@
   var currentAction = '';
   var settings = {
     targetRole: 'game',
+    streamMix: 'monitoring',
     step: 2,
     titleLabel: '',
     invertKnob: false
@@ -52,10 +53,20 @@
       normalized.targetRole = legacyTargetToRole(normalized.target);
     }
     normalized.targetRole = normalized.targetRole || 'game';
+    normalized.streamMix = normalizeStreamMix(normalized.streamMix || legacyTargetToStreamMix(normalized.target));
     normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
     return normalized;
+  }
+
+  function legacyTargetToStreamMix(target) {
+    var parts = String(target || '').split(':').filter(Boolean);
+    return parts[0] === 'streamer' ? parts[1] : '';
+  }
+
+  function normalizeStreamMix(streamMix) {
+    return streamMix === 'streaming' ? 'streaming' : 'monitoring';
   }
 
   function legacyTargetToRole(target) {
@@ -75,6 +86,7 @@
 
   function render() {
     byId('targetRole').value = settings.targetRole;
+    byId('streamMix').value = settings.streamMix;
     byId('step').value = settings.step;
     byId('titleLabel').value = settings.titleLabel;
     byId('invertKnob').checked = !!settings.invertKnob;
@@ -88,6 +100,7 @@
   function update() {
     if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
     settings.targetRole = byId('targetRole').value;
+    settings.streamMix = byId('streamMix').value;
     settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.invertKnob = byId('invertKnob').checked;
@@ -116,7 +129,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'step', 'titleLabel', 'invertKnob'].forEach(function (id) {
+    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

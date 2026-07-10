@@ -12,7 +12,7 @@ Current version: `0.3.0`.
 - `Sonar Mixer Mute`: toggles mute for one Sonar mixer target.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
 
-The normal Property Inspector target list intentionally uses user-facing roles only:
+The normal Property Inspector target list uses user-facing roles:
 
 - `Master`
 - `Game`
@@ -21,7 +21,12 @@ The normal Property Inspector target list intentionally uses user-facing roles o
 - `Aux`
 - `Microphone`
 
-Classic/stream mode and monitoring/streaming route details are not exposed in the normal UI. Diagnostics is the place to inspect those details.
+When Sonar is in stream mode, `Stream mix` selects which GG mix is controlled:
+
+- `Monitoring`
+- `Streaming`
+
+Classic/stream mode itself is not exposed in the normal UI. Diagnostics is the place to inspect mode and route details.
 
 ## Runtime Behavior
 
@@ -30,9 +35,10 @@ The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.
 The plugin reads `/mode` before writes:
 
 - `classic`: uses `/VolumeSettings/classic/...` routes and never calls streamer routes.
-- `stream`: uses `/VolumeSettings/streamer/monitoring/...` routes.
+- `stream`: uses `/VolumeSettings/streamer/{monitoring|streaming}/...` routes based on `Stream mix`.
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
+The plugin does not use Windows primary device, WASAPI, or helper fallback for normal volume/mute operations.
 
 ## Logs
 

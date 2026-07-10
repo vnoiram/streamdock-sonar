@@ -19,7 +19,7 @@ public sealed class SonarMuteHandler(
 {
     public override Task OnWillAppearAsync()
     {
-        Log.Info($"Mute willAppear context={Context} targetRole={SonarSettings.TargetRole}");
+        Log.Info($"Mute willAppear context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
         return RefreshAsync();
     }
 
@@ -32,10 +32,10 @@ public sealed class SonarMuteHandler(
     {
         try
         {
-            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, DisposeToken);
+            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
             var nextMuted = !state.Muted;
-            Log.Info($"Mute toggle context={Context} targetRole={SonarSettings.TargetRole} from={state.Muted} to={nextMuted}");
-            var result = await Client.SetMuteAsync(SonarSettings.TargetRole, nextMuted, DisposeToken);
+            Log.Info($"Mute toggle context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} from={state.Muted} to={nextMuted}");
+            var result = await Client.SetMuteAsync(SonarSettings.TargetRole, nextMuted, SonarSettings.StreamMix, DisposeToken);
             if (!result.Success)
             {
                 await ShowErrorAsync(result.ErrorSummary ?? "Sonar mute update failed");
@@ -55,7 +55,7 @@ public sealed class SonarMuteHandler(
     {
         try
         {
-            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, DisposeToken);
+            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
             await SetStateAsync(state.Muted ? 1 : 0);
             await ShowStateAsync(state);
         }

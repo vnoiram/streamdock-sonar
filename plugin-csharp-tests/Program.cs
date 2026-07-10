@@ -6,8 +6,11 @@ using StreamDockSonar;
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("classic mode does not call streamer route", ClassicModeDoesNotCallStreamerAsync),
-    ("stream mode calls streamer route", StreamModeCallsStreamerAsync),
-    ("mode mismatch 500 is user visible", ModeMismatch500IsUserVisibleAsync)
+    ("stream monitoring mode calls monitoring route", StreamMonitoringModeCallsMonitoringAsync),
+    ("stream streaming mode calls streaming route", StreamStreamingModeCallsStreamingAsync),
+    ("mode mismatch 500 is user visible", ModeMismatch500IsUserVisibleAsync),
+    ("diagnostics probes classic and streamer settings", DiagnosticsProbesClassicAndStreamerAsync),
+    ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
 foreach (var test in tests)
@@ -38,15 +41,29 @@ static async Task ClassicModeDoesNotCallStreamerAsync()
     AssertEqual(false, server.Requests.Any(path => path.Contains("/streamer/", StringComparison.OrdinalIgnoreCase)), "streamer route not called");
 }
 
-static async Task StreamModeCallsStreamerAsync()
+static async Task StreamMonitoringModeCallsMonitoringAsync()
 {
     using var server = FakeSonarServer.Start("stream");
     using var client = new SonarClient(server.BaseUrl);
 
-    var result = await client.SetMuteAsync("chatRender", true);
+    var result = await client.SetMuteAsync("chatRender", true, "monitoring");
 
     AssertEqual(true, result.Success, "success");
     AssertEqual("/VolumeSettings/streamer/monitoring/chatRender/isMuted/true", server.LastPutPath, "stream put path");
+}
+
+static async Task StreamStreamingModeCallsStreamingAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var state = await client.GetChannelStateAsync("game", "streaming");
+    var result = await client.SetVolumeAsync("game", 35, "streaming");
+
+    AssertEqual(70.0, state.Volume, "streaming state volume");
+    AssertEqual(false, state.Muted, "streaming state muted");
+    AssertEqual(true, result.Success, "success");
+    AssertEqual("/VolumeSettings/streamer/streaming/game/volume/0.35", server.LastPutPath, "streaming put path");
 }
 
 static async Task ModeMismatch500IsUserVisibleAsync()
@@ -54,12 +71,37 @@ static async Task ModeMismatch500IsUserVisibleAsync()
     using var server = FakeSonarServer.Start("stream", failPut: true);
     using var client = new SonarClient(server.BaseUrl);
 
-    var result = await client.SetVolumeAsync("game", 50);
+    var result = await client.SetVolumeAsync("game", 50, "streaming");
 
     AssertEqual(false, result.Success, "success");
     AssertEqual(500, result.StatusCode, "status");
     if (result.ErrorSummary == null || !result.ErrorSummary.Contains("Cannot be called in current mode", StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException($"Expected mode mismatch message, got '{result.ErrorSummary}'");
+}
+
+static async Task DiagnosticsProbesClassicAndStreamerAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    _ = await client.BuildDiagnosticsAsync("game", "streaming");
+
+    AssertEqual(true, server.Requests.Contains("/VolumeSettings/classic"), "classic probe");
+    AssertEqual(true, server.Requests.Contains("/VolumeSettings/streamer"), "streamer probe");
+}
+
+static Task LegacyStreamerTargetMapsStreamMix()
+{
+    var settings = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["target"] = "streamer:streaming:chat",
+        ["volumeStep"] = 4
+    });
+
+    AssertEqual("chatRender", settings.TargetRole, "targetRole");
+    AssertEqual("streaming", settings.StreamMix, "streamMix");
+    AssertEqual(4, settings.Step, "step");
+    return Task.CompletedTask;
 }
 
 static void AssertEqual<T>(T expected, T actual, string label)
@@ -159,11 +201,17 @@ sealed class FakeSonarServer : IDisposable
               "Devices": {
                 "Game": {
                   "Classic": { "Volume": 0.5, "Muted": false },
-                  "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
+                  "Stream": {
+                    "Monitoring": { "Volume": 0.5, "Muted": false },
+                    "Streaming": { "Volume": 0.7, "Muted": false }
+                  }
                 },
                 "ChatRender": {
                   "Classic": { "Volume": 0.5, "Muted": false },
-                  "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
+                  "Stream": {
+                    "Monitoring": { "Volume": 0.5, "Muted": false },
+                    "Streaming": { "Volume": 0.7, "Muted": true }
+                  }
                 }
               }
             }

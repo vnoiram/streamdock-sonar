@@ -4,19 +4,22 @@ namespace StreamDockSonar;
 
 public sealed record SonarSettings(
     string TargetRole,
+    string StreamMix,
     int Step,
     string? TitleLabel,
     bool InvertKnob)
 {
     public static SonarSettings FromDictionary(Dictionary<string, object>? settings)
     {
+        var legacyTarget = ReadString(settings, "target");
         var targetRole = ReadString(settings, "targetRole")
-                         ?? LegacyTargetToRole(ReadString(settings, "target"))
+                         ?? LegacyTargetToRole(legacyTarget)
                          ?? "game";
+        var streamMix = NormalizeStreamMix(ReadString(settings, "streamMix") ?? LegacyTargetToStreamMix(legacyTarget));
         var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
         var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, step, titleLabel, invertKnob);
+        return new SonarSettings(targetRole, streamMix, step, titleLabel, invertKnob);
     }
 
     public string DisplayName => TargetRole switch
@@ -46,6 +49,20 @@ public sealed record SonarSettings(
             "chatCapture" => "chatCapture",
             _ => null
         };
+    }
+
+    private static string? LegacyTargetToStreamMix(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return null;
+        var parts = target.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 && string.Equals(parts[0], "streamer", StringComparison.OrdinalIgnoreCase)
+            ? NormalizeStreamMix(parts[1])
+            : null;
+    }
+
+    private static string NormalizeStreamMix(string? streamMix)
+    {
+        return string.Equals(streamMix, "streaming", StringComparison.OrdinalIgnoreCase) ? "streaming" : "monitoring";
     }
 
     private static string? ReadString(Dictionary<string, object>? settings, string key)

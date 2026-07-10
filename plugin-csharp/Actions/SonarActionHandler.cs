@@ -18,7 +18,7 @@ public abstract class SonarActionHandler(
     {
         UpdateSettings(settings);
         SonarSettings = SonarSettings.FromDictionary(settings);
-        Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
+        Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
         return UpdateDisplayAsync();
     }
 
@@ -69,7 +69,7 @@ public abstract class SonarActionHandler(
 
     protected async Task SendDiagnosticsAsync()
     {
-        var diagnostics = await Client.BuildDiagnosticsAsync(DisposeToken);
+        var diagnostics = await Client.BuildDiagnosticsAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
         await Connection.SendToPropertyInspectorAsync(Context, new
         {
             type = "diagnostics",
@@ -77,6 +77,7 @@ public abstract class SonarActionHandler(
             settings = new
             {
                 SonarSettings.TargetRole,
+                SonarSettings.StreamMix,
                 SonarSettings.Step,
                 SonarSettings.TitleLabel,
                 SonarSettings.InvertKnob
