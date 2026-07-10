@@ -20,7 +20,7 @@ public sealed class SonarMuteHandler(
     public override Task OnWillAppearAsync()
     {
         Log.Info($"Mute willAppear context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
-        return RefreshAsync();
+        return RefreshSharedStateAsync();
     }
 
     public override Task UpdateDisplayAsync()
@@ -44,6 +44,7 @@ public sealed class SonarMuteHandler(
 
             await SetStateAsync(nextMuted ? 1 : 0);
             await ShowStateAsync(state with { Muted = nextMuted });
+            await RefreshSharedStateAsync();
         }
         catch (Exception ex)
         {
@@ -55,7 +56,7 @@ public sealed class SonarMuteHandler(
     {
         try
         {
-            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
+            var state = TryGetCachedState() ?? await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
             await SetStateAsync(state.Muted ? 1 : 0);
             await ShowStateAsync(state);
         }
@@ -63,5 +64,12 @@ public sealed class SonarMuteHandler(
         {
             await ShowErrorAsync(ex.Message);
         }
+    }
+
+    private SonarChannelState? TryGetCachedState()
+    {
+        if (SonarRuntime.State.Current?.TryGetState(SonarSettings.TargetRole, out var state) == true && state.Ok)
+            return new SonarChannelState(state.Volume ?? 0, state.Muted ?? false);
+        return null;
     }
 }

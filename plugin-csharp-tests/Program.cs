@@ -13,6 +13,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("overview settings normalize targets", OverviewSettingsNormalizeTargets),
     ("overview selected targets render states", OverviewSelectedTargetsRenderStatesAsync),
     ("overview missing target renders error cell", OverviewMissingTargetRendersErrorCellAsync),
+    ("chatmix get and set uses ChatMix route", ChatMixGetAndSetUsesRouteAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -148,6 +149,20 @@ static async Task OverviewMissingTargetRendersErrorCellAsync()
     AssertEqual("ERR", states[1].ValueText, "error cell value");
 }
 
+static async Task ChatMixGetAndSetUsesRouteAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var balance = await client.GetChatMixBalanceAsync();
+    var result = await client.SetChatMixBalanceAsync(-0.25);
+
+    AssertEqual(0.5, balance, "chatmix balance");
+    AssertEqual(true, result.Success, "chatmix set success");
+    AssertEqual("/ChatMix", server.LastPutPath, "chatmix put path");
+    AssertEqual("balance=-0.25", server.LastPutQuery, "chatmix put query");
+}
+
 static Task LegacyStreamerTargetMapsStreamMix()
 {
     var settings = SonarSettings.FromDictionary(new Dictionary<string, object>
@@ -188,6 +203,7 @@ sealed class FakeSonarServer : IDisposable
     public string BaseUrl { get; }
     public List<string> Requests { get; } = [];
     public string? LastPutPath { get; private set; }
+    public string? LastPutQuery { get; private set; }
 
     public static FakeSonarServer Start(string mode, bool failPut = false)
     {
@@ -230,6 +246,7 @@ sealed class FakeSonarServer : IDisposable
         if (context.Request.HttpMethod == "PUT")
         {
             LastPutPath = context.Request.Url?.AbsolutePath;
+            LastPutQuery = context.Request.Url?.Query.TrimStart('?');
             if (_failPut)
             {
                 context.Response.StatusCode = 500;
@@ -245,6 +262,12 @@ sealed class FakeSonarServer : IDisposable
         if (path == "/mode")
         {
             await WriteAsync(context, $"\"{_mode}\"");
+            return;
+        }
+
+        if (path == "/ChatMix")
+        {
+            await WriteAsync(context, """{"balance":0.5,"state":1}""");
             return;
         }
 

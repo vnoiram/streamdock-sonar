@@ -24,7 +24,7 @@ public sealed class SonarVolumeHandler(
     public override async Task OnWillAppearAsync()
     {
         Log.Info($"Volume willAppear context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
-        await RefreshAsync();
+        await RefreshSharedStateAsync();
     }
 
     public override Task UpdateDisplayAsync()
@@ -85,6 +85,7 @@ public sealed class SonarVolumeHandler(
             }
 
             await ShowStateAsync(new SonarChannelState(next, state.Muted));
+            await RefreshSharedStateAsync();
         }
         catch (Exception ex)
         {
@@ -96,12 +97,19 @@ public sealed class SonarVolumeHandler(
     {
         try
         {
-            var state = await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
+            var state = TryGetCachedState() ?? await Client.GetChannelStateAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
             await ShowStateAsync(state);
         }
         catch (Exception ex)
         {
             await ShowErrorAsync(ex.Message);
         }
+    }
+
+    private SonarChannelState? TryGetCachedState()
+    {
+        if (SonarRuntime.State.Current?.TryGetState(SonarSettings.TargetRole, out var state) == true && state.Ok)
+            return new SonarChannelState(state.Volume ?? 0, state.Muted ?? false);
+        return null;
     }
 }

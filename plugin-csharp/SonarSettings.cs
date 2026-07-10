@@ -6,6 +6,8 @@ public sealed record SonarSettings(
     string TargetRole,
     string StreamMix,
     IReadOnlyList<string> OverviewTargets,
+    string ChatMixMode,
+    int ChatMixStep,
     int Step,
     string? TitleLabel,
     bool InvertKnob)
@@ -20,10 +22,12 @@ public sealed record SonarSettings(
                          ?? "game";
         var streamMix = NormalizeStreamMix(ReadString(settings, "streamMix") ?? LegacyTargetToStreamMix(legacyTarget));
         var overviewTargets = NormalizeOverviewTargets(ReadStringList(settings, "overviewTargets"));
+        var chatMixMode = NormalizeChatMixMode(ReadString(settings, "chatMixMode"));
+        var chatMixStep = Math.Clamp(ReadInt(settings, "chatMixStep") ?? 10, 1, 100);
         var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
         var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, overviewTargets, step, titleLabel, invertKnob);
+        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, step, titleLabel, invertKnob);
     }
 
     public string DisplayName => DisplayNameFor(TargetRole);
@@ -93,6 +97,16 @@ public sealed record SonarSettings(
             .Take(6)
             .ToArray();
         return normalized.Length == 0 ? ["game"] : normalized;
+    }
+
+    private static string NormalizeChatMixMode(string? mode)
+    {
+        return mode switch
+        {
+            "game" => "game",
+            "reset" => "reset",
+            _ => "chat"
+        };
     }
 
     private static string? ReadString(Dictionary<string, object>? settings, string key)

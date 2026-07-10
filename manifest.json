@@ -50,6 +50,15 @@
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
+      "UUID": "local.streamdock.sonar.chatmix",
+      "Name": "Sonar ChatMix",
+      "Tooltip": "Adjust SteelSeries Sonar ChatMix.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "ChatMix", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
       "UUID": "local.streamdock.sonar.diagnostics",
       "Name": "Diagnostics",
       "Tooltip": "Show Sonar discovery and request diagnostics.",

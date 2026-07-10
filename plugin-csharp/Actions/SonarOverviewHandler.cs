@@ -20,7 +20,7 @@ public sealed class SonarOverviewHandler(
     public override async Task OnWillAppearAsync()
     {
         Log.Info($"Overview willAppear context={Context} streamMix={SonarSettings.StreamMix} targets={string.Join(",", SonarSettings.OverviewTargets)}");
-        await RefreshAsync(showOk: false);
+        await RefreshSharedStateAsync();
     }
 
     public override Task UpdateDisplayAsync()
@@ -31,14 +31,15 @@ public sealed class SonarOverviewHandler(
     public override async Task OnKeyDownAsync()
     {
         Log.Info($"Overview keyDown context={Context} streamMix={SonarSettings.StreamMix} targets={string.Join(",", SonarSettings.OverviewTargets)}");
-        await RefreshAsync(showOk: true);
+        await RefreshSharedStateAsync();
+        await ShowOkAsync();
     }
 
     private async Task RefreshAsync(bool showOk)
     {
         try
         {
-            var states = await Client.GetOverviewStatesAsync(SonarSettings.OverviewTargets, SonarSettings.StreamMix, DisposeToken);
+            var states = TryGetCachedStates() ?? await Client.GetOverviewStatesAsync(SonarSettings.OverviewTargets, SonarSettings.StreamMix, DisposeToken);
             await SetTitleAsync(SonarOverviewRenderer.BuildFallbackTitle(states));
             await SetImageAsync(SonarOverviewRenderer.BuildImageDataUrl(states));
             if (showOk) await ShowOkAsync();
@@ -47,5 +48,16 @@ public sealed class SonarOverviewHandler(
         {
             await ShowErrorAsync(ex.Message);
         }
+    }
+
+    private IReadOnlyList<SonarOverviewState>? TryGetCachedStates()
+    {
+        var snapshot = SonarRuntime.State.Current;
+        if (snapshot == null || snapshot.Error != null) return null;
+        return SonarSettings.OverviewTargets
+            .Select(target => snapshot.CurrentStates.TryGetValue(target, out var state)
+                ? state
+                : new SonarOverviewState(target, SonarSettings.DisplayNameFor(target), SonarSettings.ShortNameFor(target), null, null, "Missing from snapshot"))
+            .ToArray();
     }
 }

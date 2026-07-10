@@ -8,6 +8,8 @@
     targetRole: 'game',
     streamMix: 'monitoring',
     overviewTargets: ['master', 'game', 'chatRender', 'media', 'aux', 'chatCapture'],
+    chatMixMode: 'chat',
+    chatMixStep: 10,
     step: 2,
     titleLabel: '',
     invertKnob: false
@@ -56,6 +58,8 @@
     normalized.targetRole = normalized.targetRole || 'game';
     normalized.streamMix = normalizeStreamMix(normalized.streamMix || legacyTargetToStreamMix(normalized.target));
     normalized.overviewTargets = normalizeOverviewTargets(normalized.overviewTargets);
+    normalized.chatMixMode = normalizeChatMixMode(normalized.chatMixMode);
+    normalized.chatMixStep = Math.max(1, Math.min(100, Number(normalized.chatMixStep) || 10));
     normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
@@ -96,14 +100,24 @@
     return selected.length ? selected.slice(0, 6) : ['game'];
   }
 
+  function normalizeChatMixMode(mode) {
+    return mode === 'game' || mode === 'reset' ? mode : 'chat';
+  }
+
   function isOverviewAction() {
     return currentAction === 'local.streamdock.sonar.overview';
+  }
+
+  function isChatMixAction() {
+    return currentAction === 'local.streamdock.sonar.chatmix';
   }
 
   function render() {
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
     byId('step').value = settings.step;
+    byId('chatMixMode').value = settings.chatMixMode;
+    byId('chatMixStep').value = settings.chatMixStep;
     byId('titleLabel').value = settings.titleLabel;
     byId('invertKnob').checked = !!settings.invertKnob;
     Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
@@ -111,11 +125,21 @@
     });
 
     var isOverview = isOverviewAction();
+    var isChatMix = isChatMixAction();
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview);
+      element.classList.toggle('is-hidden', isOverview || isChatMix);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.chatmix-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isChatMix);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
+      element.classList.toggle('is-hidden', isChatMix);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.volume-settings'), function (element) {
+      element.classList.toggle('is-hidden', isChatMix || isOverview);
     });
 
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
@@ -129,6 +153,8 @@
     settings.targetRole = byId('targetRole').value;
     settings.streamMix = byId('streamMix').value;
     settings.overviewTargets = selectedOverviewTargets();
+    settings.chatMixMode = byId('chatMixMode').value;
+    settings.chatMixStep = Math.max(1, Math.min(100, Number(byId('chatMixStep').value) || 10));
     settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.invertKnob = byId('invertKnob').checked;
@@ -164,7 +190,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob'].forEach(function (id) {
+    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

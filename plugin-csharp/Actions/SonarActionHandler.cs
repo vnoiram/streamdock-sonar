@@ -5,27 +5,38 @@ using StreamDockSDK.Actions;
 
 namespace StreamDockSonar.Actions;
 
-public abstract class SonarActionHandler(
-    StreamDockConnection connection,
-    string context,
-    Dictionary<string, object>? settings) : ActionHandler(connection, context, settings)
+public abstract class SonarActionHandler : ActionHandler
 {
     protected readonly ILog Log = LogManager.GetLogger(typeof(SonarActionHandler));
-    protected readonly SonarClient Client = new();
-    protected SonarSettings SonarSettings { get; private set; } = SonarSettings.FromDictionary(settings);
+    protected readonly SonarClient Client = SonarRuntime.Client;
+    protected SonarSettings SonarSettings { get; private set; }
+
+    protected SonarActionHandler(StreamDockConnection connection, string context, Dictionary<string, object>? settings)
+        : base(connection, context, settings)
+    {
+        SonarSettings = SonarSettings.FromDictionary(settings);
+        SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
+        SonarRuntime.State.StateChanged += OnRuntimeStateChangedAsync;
+    }
 
     public override Task OnSettingsChangedAsync(Dictionary<string, object> settings)
     {
         UpdateSettings(settings);
         SonarSettings = SonarSettings.FromDictionary(settings);
+        SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
         Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
-        return UpdateDisplayAsync();
+        return RefreshSharedStateAsync();
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) Client.Dispose();
+        if (disposing) SonarRuntime.State.StateChanged -= OnRuntimeStateChangedAsync;
         base.Dispose(disposing);
+    }
+
+    protected virtual Task OnRuntimeStateChangedAsync(SonarSnapshot snapshot)
+    {
+        return UpdateDisplayAsync();
     }
 
     public override async Task OnSendToPluginAsync(JsonElement payload)
@@ -83,6 +94,12 @@ public abstract class SonarActionHandler(
                 SonarSettings.InvertKnob
             }
         });
+    }
+
+    protected Task RefreshSharedStateAsync()
+    {
+        SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
+        return SonarRuntime.State.RefreshAsync(DisposeToken);
     }
 
     protected static Dictionary<string, object> JsonObjectToDictionary(JsonElement element)

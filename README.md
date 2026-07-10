@@ -11,6 +11,7 @@ Current version: `0.3.0`.
 - `Sonar Mixer Volume`: adjusts one Sonar mixer target. Key press raises volume by `Step`; knob rotation adjusts up/down.
 - `Sonar Mixer Mute`: toggles mute for one Sonar mixer target.
 - `Sonar Mixer Overview`: shows selected Sonar mixer target states on the Stream Dock key.
+- `Sonar ChatMix`: moves ChatMix toward Chat/Game or resets it to center.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
 
 The normal Property Inspector target list uses user-facing roles:
@@ -51,6 +52,8 @@ The plugin reads `/mode` before writes:
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
 The plugin does not use Windows primary device, WASAPI, or helper fallback for normal volume/mute operations.
+
+Action displays share one Sonar state cache. State is refreshed on action appearance, settings changes, plugin operations, manual Overview refresh, and every 60 seconds while the plugin process is running.
 
 ## Logs
 

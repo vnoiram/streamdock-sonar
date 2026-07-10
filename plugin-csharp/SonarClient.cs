@@ -105,6 +105,24 @@ public sealed class SonarClient : IDisposable
         return await PutAsync(mode, route, cancellationToken);
     }
 
+    public async Task<double> GetChatMixBalanceAsync(CancellationToken cancellationToken = default)
+    {
+        using var document = await RequestJsonAsync("/ChatMix", HttpMethod.Get, null, cancellationToken);
+        if (TryGetPropertyIgnoreCase(document.RootElement, "balance", out var balance) && balance.ValueKind == JsonValueKind.Number)
+        {
+            LastResult = SonarOperationResult.Ok(null, "/ChatMix");
+            return Math.Clamp(balance.GetDouble(), -1, 1);
+        }
+
+        throw new InvalidOperationException("Sonar ChatMix response is missing balance");
+    }
+
+    public async Task<SonarOperationResult> SetChatMixBalanceAsync(double balance, CancellationToken cancellationToken = default)
+    {
+        var normalized = Math.Clamp(balance, -1, 1).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+        return await PutAsync("", $"/ChatMix?balance={normalized}", cancellationToken);
+    }
+
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
     {
         var mode = await GetModeAsync(cancellationToken);

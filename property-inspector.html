@@ -28,22 +28,34 @@
         <label><input type="checkbox" name="overviewTarget" value="chatCapture"> Microphone</label>
       </div>
     </div>
-    <div class="sdpi-item">
+    <div class="sdpi-item chatmix-settings">
+      <div class="sdpi-item-label">ChatMix</div>
+      <select id="chatMixMode" class="sdpi-item-value">
+        <option value="chat">Toward Chat</option>
+        <option value="game">Toward Game</option>
+        <option value="reset">Reset Center</option>
+      </select>
+    </div>
+    <div class="sdpi-item chatmix-settings">
+      <div class="sdpi-item-label">Mix step</div>
+      <input id="chatMixStep" class="sdpi-item-value" type="number" min="1" max="100" value="10">
+    </div>
+    <div class="sdpi-item streammix-settings">
       <div class="sdpi-item-label">Stream mix</div>
       <select id="streamMix" class="sdpi-item-value">
         <option value="monitoring">Monitoring</option>
         <option value="streaming">Streaming</option>
       </select>
     </div>
-    <div class="sdpi-item">
+    <div class="sdpi-item volume-settings">
       <div class="sdpi-item-label">Step</div>
       <input id="step" class="sdpi-item-value" type="number" min="1" max="20" value="2">
     </div>
-    <div class="sdpi-item">
+    <div class="sdpi-item volume-settings">
       <div class="sdpi-item-label">Title label</div>
       <input id="titleLabel" class="sdpi-item-value" placeholder="optional display alias">
     </div>
-    <div class="sdpi-item">
+    <div class="sdpi-item volume-settings">
       <div class="sdpi-item-label">Invert knob</div>
       <input id="invertKnob" class="sdpi-checkbox" type="checkbox">
     </div>
