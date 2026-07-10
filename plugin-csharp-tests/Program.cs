@@ -31,6 +31,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("stream rotate all output updates stream mixes", StreamRotateAllOutputUpdatesStreamMixesAsync),
     ("auto rotate output follows current sonar mode", AutoRotateOutputFollowsCurrentModeAsync),
     ("rotate output can include excluded devices", RotateOutputCanIncludeExcludedDevicesAsync),
+    ("rotate output falls back when target fallback list is empty", RotateOutputFallsBackWhenTargetFallbackListIsEmptyAsync),
+    ("rotate output matches encoded current device id", RotateOutputMatchesEncodedCurrentDeviceIdAsync),
     ("rotate output supports previous direction", RotateOutputSupportsPreviousDirectionAsync),
     ("classic rotate input uses next capture device", ClassicRotateInputUsesNextCaptureDeviceAsync),
     ("stream rotate input uses next capture device", StreamRotateInputUsesNextCaptureDeviceAsync),
@@ -401,6 +403,28 @@ static async Task RotateOutputCanIncludeExcludedDevicesAsync()
     AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate with excluded path");
 }
 
+static async Task RotateOutputFallsBackWhenTargetFallbackListIsEmptyAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("chatRender", "monitoring");
+
+    AssertEqual(true, result.Success, "rotate empty fallback success");
+    AssertEqual("/ClassicRedirections/chatRender/deviceId/render-device-2", server.LastPutPath, "rotate empty fallback path");
+}
+
+static async Task RotateOutputMatchesEncodedCurrentDeviceIdAsync()
+{
+    using var server = FakeSonarServer.Start("classic", encodedGameDevice: true);
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring");
+
+    AssertEqual(true, result.Success, "rotate encoded current success");
+    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate encoded current path");
+}
+
 static async Task RotateOutputSupportsPreviousDirectionAsync()
 {
     using var server = FakeSonarServer.Start("classic");
@@ -460,15 +484,17 @@ sealed class FakeSonarServer : IDisposable
     private readonly string _mode;
     private readonly bool _failPut;
     private readonly int _chatMixState;
+    private readonly bool _encodedGameDevice;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
 
-    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState)
+    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState, bool encodedGameDevice)
     {
         _listener = listener;
         _mode = mode;
         _failPut = failPut;
         _chatMixState = chatMixState;
+        _encodedGameDevice = encodedGameDevice;
         BaseUrl = $"http://127.0.0.1:{port}";
         _loop = Task.Run(ServeAsync);
     }
@@ -479,13 +505,13 @@ sealed class FakeSonarServer : IDisposable
     public string? LastPutPath { get; private set; }
     public string? LastPutQuery { get; private set; }
 
-    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1)
+    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1, bool encodedGameDevice = false)
     {
         var port = GetFreeTcpPort();
         var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
-        return new FakeSonarServer(listener, port, mode, failPut, chatMixState);
+        return new FakeSonarServer(listener, port, mode, failPut, chatMixState, encodedGameDevice);
     }
 
     public void Dispose()
@@ -584,15 +610,16 @@ sealed class FakeSonarServer : IDisposable
 
         if (path == "/ClassicRedirections")
         {
+            var gameDeviceId = _encodedGameDevice ? "render%2Ddevice" : "render-device";
             await WriteAsync(context, """
             [
-              { "id": "game", "deviceId": "render-device", "isRunning": true },
+              { "id": "game", "deviceId": "__GAME_DEVICE_ID__", "isRunning": true },
               { "id": "chatRender", "deviceId": "render-device", "isRunning": true },
               { "id": "media", "deviceId": "render-device", "isRunning": true },
               { "id": "aux", "deviceId": "render-device", "isRunning": true },
               { "id": "mic", "deviceId": "capture-device", "isRunning": true }
             ]
-            """);
+            """.Replace("__GAME_DEVICE_ID__", gameDeviceId));
             return;
         }
 

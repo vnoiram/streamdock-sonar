@@ -227,10 +227,6 @@ public sealed class SonarClient : IDisposable
 
     public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, string rotationMode = "target", bool allowExcludedDevices = false, int direction = 1, CancellationToken cancellationToken = default)
     {
-        var devices = await GetRotatableOutputDevicesAsync(allowExcludedDevices, cancellationToken);
-        if (devices.Count == 0)
-            return SonarOperationResult.Error(null, null, null, "No Sonar output devices are available");
-
         var mode = await GetModeAsync(cancellationToken);
         var selectedMode = NormalizeRotationMode(rotationMode, mode);
         var currentDeviceId = selectedMode switch
@@ -239,7 +235,12 @@ public sealed class SonarClient : IDisposable
             "all-streaming" => await GetCurrentOutputDeviceIdAsync("stream", "game", "monitoring", cancellationToken),
             _ => await GetCurrentOutputDeviceIdAsync(mode, targetRole, streamMix, cancellationToken)
         };
-        var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
+        var devices = await GetRotatableOutputDevicesAsync(targetRole, currentDeviceId, allowExcludedDevices, cancellationToken);
+        if (devices.Count == 0)
+            return SonarOperationResult.Error(selectedMode, null, null, "No Sonar output devices are available");
+
+        var currentIndex = FindDeviceIndex(devices, currentDeviceId);
+        Log.Info($"Rotate output targetRole={targetRole} selectedMode={selectedMode} currentIndex={currentIndex} direction={direction} candidates={SummarizeDeviceIds(devices)} current={currentDeviceId}");
         var nextIndex = NextIndex(devices.Count, currentIndex, direction);
         var nextDeviceId = devices[nextIndex].Id;
 
@@ -259,7 +260,8 @@ public sealed class SonarClient : IDisposable
 
         var mode = await GetModeAsync(cancellationToken);
         var currentDeviceId = await GetCurrentInputDeviceIdAsync(mode, cancellationToken);
-        var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
+        var currentIndex = FindDeviceIndex(devices, currentDeviceId);
+        Log.Info($"Rotate input currentIndex={currentIndex} direction={direction} candidates={SummarizeDeviceIds(devices)} current={currentDeviceId}");
         var nextIndex = NextIndex(devices.Count, currentIndex, direction);
         return await SetInputDeviceAsync(devices[nextIndex].Id, cancellationToken);
     }
@@ -272,13 +274,55 @@ public sealed class SonarClient : IDisposable
         return (currentIndex + delta + count) % count;
     }
 
-    private async Task<IReadOnlyList<SonarAudioDevice>> GetRotatableOutputDevicesAsync(bool allowExcludedDevices, CancellationToken cancellationToken)
+    private static int FindDeviceIndex(IReadOnlyList<SonarAudioDevice> devices, string deviceId)
+    {
+        for (var index = 0; index < devices.Count; index++)
+        {
+            if (DeviceIdsEqual(devices[index].Id, deviceId)) return index;
+        }
+
+        return -1;
+    }
+
+    private static bool ContainsDeviceId(HashSet<string> deviceIds, string deviceId)
+    {
+        return deviceIds.Any(candidate => DeviceIdsEqual(candidate, deviceId));
+    }
+
+    private static bool DeviceIdsEqual(string left, string right)
+    {
+        return string.Equals(NormalizeDeviceIdForCompare(left), NormalizeDeviceIdForCompare(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDeviceIdForCompare(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        try
+        {
+            return Uri.UnescapeDataString(value).Trim();
+        }
+        catch
+        {
+            return value.Trim();
+        }
+    }
+
+    private static string SummarizeDeviceIds(IReadOnlyList<SonarAudioDevice> devices)
+    {
+        return string.Join(",", devices.Select(device => device.Id).Take(6));
+    }
+
+    private async Task<IReadOnlyList<SonarAudioDevice>> GetRotatableOutputDevicesAsync(string targetRole, string currentDeviceId, bool allowExcludedDevices, CancellationToken cancellationToken)
     {
         var devices = await GetAudioDevicesAsync("render", allowExcludedDevices, cancellationToken);
         if (allowExcludedDevices) return devices;
 
-        var allowedIds = await GetFallbackDeviceIdsAsync("game", cancellationToken);
-        return devices.Where(device => allowedIds.Contains(device.Id)).ToArray();
+        var allowedIds = await GetFallbackDeviceIdsAsync(FallbackChannel(targetRole), cancellationToken);
+        var filtered = devices.Where(device => ContainsDeviceId(allowedIds, device.Id)).ToArray();
+        if (filtered.Length >= 2 && FindDeviceIndex(filtered, currentDeviceId) >= 0) return filtered;
+
+        Log.Info($"Output fallback devices did not match current rotation state; using active render devices targetRole={targetRole} filtered={SummarizeDeviceIds(filtered)} all={SummarizeDeviceIds(devices)} current={currentDeviceId}");
+        return devices;
     }
 
     private async Task<IReadOnlyList<SonarAudioDevice>> GetRotatableInputDevicesAsync(bool allowExcludedDevices, CancellationToken cancellationToken)
@@ -331,6 +375,18 @@ public sealed class SonarClient : IDisposable
             .Where(device => device.IsActive && !device.IsExcluded)
             .Select(device => device.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string FallbackChannel(string targetRole)
+    {
+        return targetRole switch
+        {
+            "chatCapture" => "chatCapture",
+            "chatRender" => "chatRender",
+            "media" => "media",
+            "aux" => "aux",
+            _ => "game"
+        };
     }
 
     private async Task<string> GetCurrentOutputDeviceIdAsync(string mode, string targetRole, string streamMix, CancellationToken cancellationToken)
