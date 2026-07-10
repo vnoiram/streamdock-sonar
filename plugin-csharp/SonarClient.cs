@@ -145,6 +145,36 @@ public sealed class SonarClient : IDisposable
 
     public async Task<IReadOnlyList<SonarAudioDevice>> GetOutputDevicesAsync(CancellationToken cancellationToken = default)
     {
+        return await GetAudioDevicesAsync("render", cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SonarAudioDevice>> GetInputDevicesAsync(CancellationToken cancellationToken = default)
+    {
+        return await GetAudioDevicesAsync("capture", cancellationToken);
+    }
+
+    public async Task<SonarOperationResult> SetInputDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+            return SonarOperationResult.Error(null, null, null, "Sonar input deviceId is required");
+
+        string? mode = null;
+        try
+        {
+            mode = await GetModeAsync(cancellationToken);
+            var route = BuildInputDeviceRoute(mode, deviceId);
+            return await PutAsync(mode, route, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var result = SonarOperationResult.Error(mode, null, null, ex.Message);
+            LastResult = result;
+            return result;
+        }
+    }
+
+    private async Task<IReadOnlyList<SonarAudioDevice>> GetAudioDevicesAsync(string dataFlow, CancellationToken cancellationToken)
+    {
         using var document = await RequestJsonAsync("/audioDevices", HttpMethod.Get, null, cancellationToken);
         var devices = new List<SonarAudioDevice>();
         if (document.RootElement.ValueKind != JsonValueKind.Array)
@@ -153,7 +183,7 @@ public sealed class SonarClient : IDisposable
         foreach (var item in document.RootElement.EnumerateArray())
         {
             var device = ReadAudioDevice(item);
-            if (string.Equals(device.DataFlow, "render", StringComparison.OrdinalIgnoreCase) &&
+            if (string.Equals(device.DataFlow, dataFlow, StringComparison.OrdinalIgnoreCase) &&
                 !device.IsVad &&
                 (string.IsNullOrWhiteSpace(device.State) || string.Equals(device.State, "active", StringComparison.OrdinalIgnoreCase)))
             {
@@ -398,6 +428,14 @@ public sealed class SonarClient : IDisposable
             throw new InvalidOperationException("Master does not have a classic output redirection route");
 
         return $"/ClassicRedirections/{HttpChannel(targetRole, normalizedMode)}/deviceId/{escapedDeviceId}";
+    }
+
+    private static string BuildInputDeviceRoute(string mode, string deviceId)
+    {
+        var escapedDeviceId = Uri.EscapeDataString(deviceId);
+        return NormalizeMode(mode) == "stream"
+            ? $"/StreamRedirections/mic/deviceId/{escapedDeviceId}"
+            : $"/ClassicRedirections/mic/deviceId/{escapedDeviceId}";
     }
 
     private static string VolumeSettingsRoute(string mode)

@@ -53,7 +53,10 @@ public abstract class SonarActionHandler : ActionHandler
             payload.TryGetProperty("command", out command) &&
             string.Equals(command.GetString(), "devices", StringComparison.OrdinalIgnoreCase))
         {
-            await SendOutputDevicesAsync();
+            var dataFlow = payload.TryGetProperty("dataFlow", out var dataFlowElement) && dataFlowElement.ValueKind == JsonValueKind.String
+                ? dataFlowElement.GetString()
+                : "render";
+            await SendDevicesAsync(dataFlow);
         }
     }
 
@@ -104,14 +107,17 @@ public abstract class SonarActionHandler : ActionHandler
         });
     }
 
-    protected async Task SendOutputDevicesAsync()
+    protected async Task SendDevicesAsync(string? dataFlow)
     {
         try
         {
-            var devices = await Client.GetOutputDevicesAsync(DisposeToken);
+            var devices = string.Equals(dataFlow, "capture", StringComparison.OrdinalIgnoreCase)
+                ? await Client.GetInputDevicesAsync(DisposeToken)
+                : await Client.GetOutputDevicesAsync(DisposeToken);
             await Connection.SendToPropertyInspectorAsync(Context, new
             {
                 type = "devices",
+                dataFlow = string.Equals(dataFlow, "capture", StringComparison.OrdinalIgnoreCase) ? "capture" : "render",
                 devices = devices.Select(device => new
                 {
                     id = device.Id,

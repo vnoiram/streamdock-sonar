@@ -120,6 +120,14 @@
     return currentAction === 'local.streamdock.sonar.output-device';
   }
 
+  function isInputDeviceAction() {
+    return currentAction === 'local.streamdock.sonar.input-device';
+  }
+
+  function isDeviceAction() {
+    return isOutputDeviceAction() || isInputDeviceAction();
+  }
+
   function render() {
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
@@ -137,8 +145,9 @@
     var isOverview = isOverviewAction();
     var isChatMix = isChatMixAction();
     var isOutputDevice = isOutputDeviceAction();
+    var isInputDevice = isInputDeviceAction();
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview || isChatMix);
+      element.classList.toggle('is-hidden', isOverview || isChatMix || isInputDevice);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
@@ -147,13 +156,13 @@
       element.classList.toggle('is-hidden', !isChatMix);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix);
+      element.classList.toggle('is-hidden', isChatMix || isInputDevice);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.device-settings'), function (element) {
-      element.classList.toggle('is-hidden', !isOutputDevice);
+      element.classList.toggle('is-hidden', !isDeviceAction());
     });
     Array.prototype.forEach.call(document.querySelectorAll('.volume-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isOverview || isOutputDevice);
+      element.classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction());
     });
 
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
@@ -203,12 +212,12 @@
 
   function requestDevices() {
     if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
-    if (!isOutputDeviceAction()) return;
+    if (!isDeviceAction()) return;
     websocket.send(JSON.stringify({
       event: 'sendToPlugin',
       action: currentAction,
       context: context,
-      payload: { command: 'devices' }
+      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render' }
     }));
     byId('deviceStatus').textContent = 'loading';
   }
@@ -223,7 +232,7 @@
       renderDeviceOptions();
     } else if (payload.type === 'error') {
       byId('status').textContent = payload.message || 'error';
-      if (isOutputDeviceAction()) byId('deviceStatus').textContent = payload.message || 'error';
+      if (isDeviceAction()) byId('deviceStatus').textContent = payload.message || 'error';
     }
   }
 

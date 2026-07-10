@@ -9,7 +9,7 @@ namespace StreamDockSonar;
     PackageId = "local.streamdock.sonar",
     SdkVersion = 1,
     Name = "Stream Dock Sonar",
-    Version = "0.3.2",
+    Version = "0.3.3",
     Author = "local",
     Description = "Control SteelSeries GG Sonar mixer volume and mute directly.",
     Category = "GG-Sonar",

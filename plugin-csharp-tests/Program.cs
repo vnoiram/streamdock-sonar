@@ -18,6 +18,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("stream output device uses stream redirection route", StreamOutputDeviceUsesRedirectionRouteAsync),
     ("classic master output device is user visible error", ClassicMasterOutputDeviceIsUserVisibleErrorAsync),
     ("output devices filters active non virtual render devices", OutputDevicesFiltersActiveRenderDevicesAsync),
+    ("classic input device uses mic redirection route", ClassicInputDeviceUsesMicRedirectionRouteAsync),
+    ("stream input device uses mic redirection route", StreamInputDeviceUsesMicRedirectionRouteAsync),
+    ("input devices filters active non virtual capture devices", InputDevicesFiltersActiveCaptureDevicesAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
 
@@ -211,6 +214,40 @@ static async Task OutputDevicesFiltersActiveRenderDevicesAsync()
     AssertEqual(1, devices.Count, "output device count");
     AssertEqual("render-device", devices[0].Id, "output device id");
     AssertEqual("Speakers", devices[0].FriendlyName, "output device name");
+}
+
+static async Task ClassicInputDeviceUsesMicRedirectionRouteAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetInputDeviceAsync("{mic-device}", CancellationToken.None);
+
+    AssertEqual(true, result.Success, "classic input success");
+    AssertEqual("/ClassicRedirections/mic/deviceId/%7Bmic-device%7D", server.LastPutPath, "classic input path");
+}
+
+static async Task StreamInputDeviceUsesMicRedirectionRouteAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetInputDeviceAsync("stream-mic", CancellationToken.None);
+
+    AssertEqual(true, result.Success, "stream input success");
+    AssertEqual("/StreamRedirections/mic/deviceId/stream-mic", server.LastPutPath, "stream input path");
+}
+
+static async Task InputDevicesFiltersActiveCaptureDevicesAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var devices = await client.GetInputDevicesAsync();
+
+    AssertEqual(1, devices.Count, "input device count");
+    AssertEqual("capture-device", devices[0].Id, "input device id");
+    AssertEqual("Microphone", devices[0].FriendlyName, "input device name");
 }
 
 static Task LegacyStreamerTargetMapsStreamMix()
