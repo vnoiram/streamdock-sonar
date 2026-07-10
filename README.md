@@ -4,7 +4,7 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.9`.
+Current version: `0.3.10`.
 
 ## Actions
 
@@ -137,7 +137,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.9.zip
+dist/release/streamdock-sonar-0.3.10.zip
 ```
 
 The packaged plugin directory is:
