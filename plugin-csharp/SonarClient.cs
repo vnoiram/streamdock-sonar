@@ -774,6 +774,21 @@ public sealed class SonarClient : IDisposable
     {
         var summary = $"Sonar HTTP {(int)statusCode}";
         if (string.IsNullOrWhiteSpace(body)) return summary;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (TryGetPropertyIgnoreCase(document.RootElement, "Message", out var message) &&
+                message.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(message.GetString()))
+            {
+                return $"{summary}: {message.GetString()}";
+            }
+        }
+        catch
+        {
+            // Fall back to a compact raw body below.
+        }
+
         var compact = body.Replace('\r', ' ').Replace('\n', ' ');
         if (compact.Length > 300) compact = compact[..300] + "...";
         return $"{summary}: {compact}";

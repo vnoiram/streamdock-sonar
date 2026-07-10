@@ -41,11 +41,12 @@ public abstract class SonarActionHandler : ActionHandler
 
     public override async Task OnSendToPluginAsync(JsonElement payload)
     {
+        var replyContext = ReadReplyContext(payload);
         if (payload.ValueKind == JsonValueKind.Object &&
             payload.TryGetProperty("command", out var command) &&
             string.Equals(command.GetString(), "diagnostics", StringComparison.OrdinalIgnoreCase))
         {
-            await SendDiagnosticsAsync();
+            await SendDiagnosticsAsync(replyContext);
             return;
         }
 
@@ -56,7 +57,7 @@ public abstract class SonarActionHandler : ActionHandler
             var dataFlow = payload.TryGetProperty("dataFlow", out var dataFlowElement) && dataFlowElement.ValueKind == JsonValueKind.String
                 ? dataFlowElement.GetString()
                 : "render";
-            await SendDevicesAsync(dataFlow);
+            await SendDevicesAsync(dataFlow, replyContext);
             return;
         }
 
@@ -67,7 +68,7 @@ public abstract class SonarActionHandler : ActionHandler
             var targetRole = payload.TryGetProperty("targetRole", out var targetElement) && targetElement.ValueKind == JsonValueKind.String
                 ? targetElement.GetString()
                 : SonarSettings.TargetRole;
-            await SendProfilesAsync(targetRole);
+            await SendProfilesAsync(targetRole, replyContext);
         }
     }
 
@@ -100,10 +101,10 @@ public abstract class SonarActionHandler : ActionHandler
         });
     }
 
-    protected async Task SendDiagnosticsAsync()
+    protected async Task SendDiagnosticsAsync(string? replyContext = null)
     {
         var diagnostics = await Client.BuildDiagnosticsAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
-        await Connection.SendToPropertyInspectorAsync(Context, new
+        await Connection.SendToPropertyInspectorAsync(replyContext ?? Context, new
         {
             type = "diagnostics",
             diagnostics,
@@ -118,14 +119,14 @@ public abstract class SonarActionHandler : ActionHandler
         });
     }
 
-    protected async Task SendDevicesAsync(string? dataFlow)
+    protected async Task SendDevicesAsync(string? dataFlow, string replyContext)
     {
         try
         {
             var devices = string.Equals(dataFlow, "capture", StringComparison.OrdinalIgnoreCase)
                 ? await Client.GetInputDevicesAsync(DisposeToken)
                 : await Client.GetOutputDevicesAsync(DisposeToken);
-            await Connection.SendToPropertyInspectorAsync(Context, new
+            await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "devices",
                 dataFlow = string.Equals(dataFlow, "capture", StringComparison.OrdinalIgnoreCase) ? "capture" : "render",
@@ -140,7 +141,7 @@ public abstract class SonarActionHandler : ActionHandler
         }
         catch (Exception ex)
         {
-            await Connection.SendToPropertyInspectorAsync(Context, new
+            await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "error",
                 source = "devices",
@@ -149,14 +150,14 @@ public abstract class SonarActionHandler : ActionHandler
         }
     }
 
-    protected async Task SendProfilesAsync(string? targetRole)
+    protected async Task SendProfilesAsync(string? targetRole, string replyContext)
     {
         try
         {
             var normalizedTarget = string.IsNullOrWhiteSpace(targetRole) ? SonarSettings.TargetRole : targetRole;
             var profiles = await Client.GetConfigProfilesAsync(normalizedTarget!, DisposeToken);
             var selected = await Client.GetSelectedConfigProfileAsync(normalizedTarget!, DisposeToken);
-            await Connection.SendToPropertyInspectorAsync(Context, new
+            await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "profiles",
                 targetRole = normalizedTarget,
@@ -172,7 +173,7 @@ public abstract class SonarActionHandler : ActionHandler
         }
         catch (Exception ex)
         {
-            await Connection.SendToPropertyInspectorAsync(Context, new
+            await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "error",
                 source = "profiles",
@@ -185,6 +186,19 @@ public abstract class SonarActionHandler : ActionHandler
     {
         SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
         return SonarRuntime.State.RefreshAsync(DisposeToken);
+    }
+
+    private string ReadReplyContext(JsonElement payload)
+    {
+        if (payload.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("replyContext", out var replyContext) &&
+            replyContext.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(replyContext.GetString()))
+        {
+            return replyContext.GetString()!;
+        }
+
+        return Context;
     }
 
     protected static Dictionary<string, object> JsonObjectToDictionary(JsonElement element)

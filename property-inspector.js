@@ -272,7 +272,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: context,
-      payload: { command: 'diagnostics' }
+      payload: { command: 'diagnostics', replyContext: context }
     }));
     byId('status').textContent = 'checking';
   }
@@ -284,7 +284,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: context,
-      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render' }
+      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render', replyContext: context }
     }));
     byId('deviceStatus').textContent = 'loading';
     if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
@@ -302,7 +302,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: context,
-      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole }
+      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole, replyContext: context }
     }));
     byId('profileStatus').textContent = 'loading';
     if (profileRequestTimer) clearTimeout(profileRequestTimer);
