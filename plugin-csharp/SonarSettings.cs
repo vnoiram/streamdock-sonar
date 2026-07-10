@@ -10,6 +10,7 @@ public sealed record SonarSettings(
     int ChatMixStep,
     string DeviceId,
     string TargetProfileId,
+    string RotationMode,
     int Step,
     string? TitleLabel,
     bool InvertKnob)
@@ -28,10 +29,11 @@ public sealed record SonarSettings(
         var chatMixStep = Math.Clamp(ReadInt(settings, "chatMixStep") ?? 10, 1, 100);
         var deviceId = ReadString(settings, "deviceId") ?? "";
         var targetProfileId = ReadString(settings, "targetProfileId") ?? "";
+        var rotationMode = NormalizeRotationMode(ReadString(settings, "rotationMode"));
         var step = Math.Clamp(ReadInt(settings, "step") ?? ReadInt(settings, "volumeStep") ?? 2, 1, 20);
         var titleLabel = ReadString(settings, "titleLabel");
         var invertKnob = ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, step, titleLabel, invertKnob);
+        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, rotationMode, step, titleLabel, invertKnob);
     }
 
     public string DisplayName => DisplayNameFor(TargetRole);
@@ -110,6 +112,17 @@ public sealed record SonarSettings(
             "game" => "game",
             "reset" => "reset",
             _ => "chat"
+        };
+    }
+
+    private static string NormalizeRotationMode(string? mode)
+    {
+        return mode switch
+        {
+            "all-auto-detect" => "all-auto-detect",
+            "all-classic" => "all-classic",
+            "all-streaming" => "all-streaming",
+            _ => "target"
         };
     }
 

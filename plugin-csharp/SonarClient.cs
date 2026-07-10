@@ -220,17 +220,30 @@ public sealed class SonarClient : IDisposable
         return await PutAsync("", route, cancellationToken);
     }
 
-    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, CancellationToken cancellationToken = default)
+    public async Task<SonarOperationResult> RotateOutputDeviceAsync(string targetRole, string streamMix, string rotationMode = "target", CancellationToken cancellationToken = default)
     {
         var devices = await GetOutputDevicesAsync(cancellationToken);
         if (devices.Count == 0)
             return SonarOperationResult.Error(null, null, null, "No Sonar output devices are available");
 
         var mode = await GetModeAsync(cancellationToken);
-        var currentDeviceId = await GetCurrentOutputDeviceIdAsync(mode, targetRole, streamMix, cancellationToken);
+        var selectedMode = NormalizeRotationMode(rotationMode, mode);
+        var currentDeviceId = selectedMode switch
+        {
+            "all-classic" => await GetCurrentOutputDeviceIdAsync("classic", "game", "monitoring", cancellationToken),
+            "all-streaming" => await GetCurrentOutputDeviceIdAsync("stream", "game", "monitoring", cancellationToken),
+            _ => await GetCurrentOutputDeviceIdAsync(mode, targetRole, streamMix, cancellationToken)
+        };
         var currentIndex = devices.ToList().FindIndex(device => string.Equals(device.Id, currentDeviceId, StringComparison.OrdinalIgnoreCase));
         var nextIndex = currentIndex >= 0 && currentIndex + 1 < devices.Count ? currentIndex + 1 : 0;
-        return await SetOutputDeviceAsync(targetRole, streamMix, devices[nextIndex].Id, cancellationToken);
+        var nextDeviceId = devices[nextIndex].Id;
+
+        return selectedMode switch
+        {
+            "all-classic" => await SetAllClassicOutputDevicesAsync(nextDeviceId, cancellationToken),
+            "all-streaming" => await SetAllStreamOutputDevicesAsync(nextDeviceId, cancellationToken),
+            _ => await SetOutputDeviceAsync(targetRole, streamMix, nextDeviceId, cancellationToken)
+        };
     }
 
     public async Task<SonarOperationResult> RotateInputDeviceAsync(CancellationToken cancellationToken = default)
@@ -309,6 +322,28 @@ public sealed class SonarClient : IDisposable
         }
 
         throw new InvalidOperationException("Sonar redirection 'mic' was not found");
+    }
+
+    private async Task<SonarOperationResult> SetAllClassicOutputDevicesAsync(string deviceId, CancellationToken cancellationToken)
+    {
+        foreach (var targetRole in new[] { "game", "chatRender", "media", "aux" })
+        {
+            var result = await PutAsync("classic", BuildDeviceRoute("classic", targetRole, "monitoring", deviceId), cancellationToken);
+            if (!result.Success) return result;
+        }
+
+        return SonarOperationResult.Ok("classic", "/ClassicRedirections/*/deviceId", 200);
+    }
+
+    private async Task<SonarOperationResult> SetAllStreamOutputDevicesAsync(string deviceId, CancellationToken cancellationToken)
+    {
+        foreach (var streamMix in new[] { "monitoring", "streaming" })
+        {
+            var result = await PutAsync("stream", BuildDeviceRoute("stream", "game", streamMix, deviceId), cancellationToken);
+            if (!result.Success) return result;
+        }
+
+        return SonarOperationResult.Ok("stream", "/StreamRedirections/*/deviceId", 200);
     }
 
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
@@ -603,6 +638,17 @@ public sealed class SonarClient : IDisposable
     private static string NormalizeStreamMix(string? streamMix)
     {
         return string.Equals(streamMix, "streaming", StringComparison.OrdinalIgnoreCase) ? "streaming" : "monitoring";
+    }
+
+    private static string NormalizeRotationMode(string? rotationMode, string currentMode)
+    {
+        return rotationMode switch
+        {
+            "all-classic" => "all-classic",
+            "all-streaming" => "all-streaming",
+            "all-auto-detect" => NormalizeMode(currentMode) == "stream" ? "all-streaming" : "all-classic",
+            _ => "target"
+        };
     }
 
     private static string SummarizeVolumeShape(JsonElement root, string mode)

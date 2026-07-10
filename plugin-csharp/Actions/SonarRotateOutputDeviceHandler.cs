@@ -26,7 +26,11 @@ public sealed class SonarRotateOutputDeviceHandler(
     public override async Task OnKeyDownAsync()
     {
         Log.Info($"RotateOutput keyDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
-        var result = await Client.RotateOutputDeviceAsync(SonarSettings.TargetRole, SonarSettings.StreamMix, DisposeToken);
+        var result = await Client.RotateOutputDeviceAsync(
+            SonarSettings.TargetRole,
+            SonarSettings.StreamMix,
+            SonarSettings.RotationMode,
+            DisposeToken);
         if (!result.Success)
         {
             await ShowErrorAsync(result.ErrorSummary ?? "Sonar output device rotation failed");
@@ -39,6 +43,13 @@ public sealed class SonarRotateOutputDeviceHandler(
 
     public override Task UpdateDisplayAsync()
     {
-        return SetTitleAsync($"Rotate\n{Label}");
+        var label = SonarSettings.RotationMode switch
+        {
+            "all-auto-detect" => "Auto",
+            "all-classic" => "Classic",
+            "all-streaming" => "Stream",
+            _ => Label
+        };
+        return SetTitleAsync($"Rotate\n{label}");
     }
 }

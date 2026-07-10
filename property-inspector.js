@@ -14,6 +14,7 @@
     chatMixStep: 10,
     deviceId: '',
     targetProfileId: '',
+    rotationMode: 'target',
     step: 2,
     titleLabel: '',
     invertKnob: false
@@ -68,6 +69,7 @@
     normalized.chatMixStep = Math.max(1, Math.min(100, Number(normalized.chatMixStep) || 10));
     normalized.deviceId = normalized.deviceId || '';
     normalized.targetProfileId = normalized.targetProfileId || '';
+    normalized.rotationMode = normalizeRotationMode(normalized.rotationMode);
     normalized.step = Number(normalized.step || normalized.volumeStep || 2) || 2;
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
@@ -110,6 +112,10 @@
 
   function normalizeChatMixMode(mode) {
     return mode === 'game' || mode === 'reset' ? mode : 'chat';
+  }
+
+  function normalizeRotationMode(mode) {
+    return mode === 'all-auto-detect' || mode === 'all-classic' || mode === 'all-streaming' ? mode : 'target';
   }
 
   function isOverviewAction() {
@@ -155,6 +161,7 @@
     byId('chatMixMode').value = settings.chatMixMode;
     byId('chatMixStep').value = settings.chatMixStep;
     byId('deviceId').value = settings.deviceId;
+    byId('rotationMode').value = settings.rotationMode;
     renderDeviceOptions();
     renderProfileOptions();
     byId('titleLabel').value = settings.titleLabel;
@@ -184,6 +191,9 @@
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
       element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isDiagnostics);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('.rotation-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isRotateOutput);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.device-settings'), function (element) {
       element.classList.toggle('is-hidden', !isDeviceAction());
     });
@@ -212,6 +222,7 @@
     settings.chatMixStep = Math.max(1, Math.min(100, Number(byId('chatMixStep').value) || 10));
     settings.deviceId = byId('deviceId').value.trim();
     settings.targetProfileId = byId('targetProfileId').value;
+    settings.rotationMode = normalizeRotationMode(byId('rotationMode').value);
     settings.step = Math.max(1, Math.min(20, Number(byId('step').value) || 2));
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.invertKnob = byId('invertKnob').checked;
@@ -325,7 +336,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId'].forEach(function (id) {
+    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

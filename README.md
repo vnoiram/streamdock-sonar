@@ -4,7 +4,7 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.7`.
+Current version: `0.3.8`.
 
 ## Actions
 
@@ -62,7 +62,7 @@ Output device switching follows Sonar's redirection routes:
 - `stream`: `/StreamRedirections/{monitoring|streaming}/deviceId/{deviceId}`.
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
-`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes.
+`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. It also supports `All auto`, `All classic`, and `All stream` rotation modes matching Sonar Controller's grouped output rotation behavior.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/mic/deviceId/{deviceId}` in classic mode and `/StreamRedirections/mic/deviceId/{deviceId}` in stream mode.
 `Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes.
 `Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.
@@ -133,7 +133,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.7.zip
+dist/release/streamdock-sonar-0.3.8.zip
 ```
 
 The packaged plugin directory is:

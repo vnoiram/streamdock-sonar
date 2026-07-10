@@ -25,6 +25,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("select config profile uses select route", SelectConfigProfileUsesRouteAsync),
     ("classic rotate output uses next render device", ClassicRotateOutputUsesNextRenderDeviceAsync),
     ("stream rotate output uses next render device", StreamRotateOutputUsesNextRenderDeviceAsync),
+    ("classic rotate all output updates classic channels", ClassicRotateAllOutputUpdatesClassicChannelsAsync),
+    ("stream rotate all output updates stream mixes", StreamRotateAllOutputUpdatesStreamMixesAsync),
+    ("auto rotate output follows current sonar mode", AutoRotateOutputFollowsCurrentModeAsync),
     ("classic rotate input uses next capture device", ClassicRotateInputUsesNextCaptureDeviceAsync),
     ("stream rotate input uses next capture device", StreamRotateInputUsesNextCaptureDeviceAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
@@ -302,6 +305,48 @@ static async Task StreamRotateOutputUsesNextRenderDeviceAsync()
     AssertEqual("/StreamRedirections/streaming/deviceId/render-device-2", server.LastPutPath, "stream rotate path");
 }
 
+static async Task ClassicRotateAllOutputUpdatesClassicChannelsAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring", "all-classic");
+
+    AssertEqual(true, result.Success, "classic rotate all success");
+    AssertEqual(4, server.PutPaths.Count(path => path.StartsWith("/ClassicRedirections/", StringComparison.Ordinal)), "classic put count");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/game/deviceId/render-device-2"), "game route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/chatRender/deviceId/render-device-2"), "chat route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/media/deviceId/render-device-2"), "media route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/aux/deviceId/render-device-2"), "aux route");
+}
+
+static async Task StreamRotateAllOutputUpdatesStreamMixesAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring", "all-streaming");
+
+    AssertEqual(true, result.Success, "stream rotate all success");
+    AssertEqual(2, server.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream put count");
+    AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/monitoring/deviceId/render-device-2"), "monitoring route");
+    AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/streaming/deviceId/render-device-2"), "streaming route");
+}
+
+static async Task AutoRotateOutputFollowsCurrentModeAsync()
+{
+    using var classicServer = FakeSonarServer.Start("classic");
+    using var classicClient = new SonarClient(classicServer.BaseUrl);
+    using var streamServer = FakeSonarServer.Start("stream");
+    using var streamClient = new SonarClient(streamServer.BaseUrl);
+
+    _ = await classicClient.RotateOutputDeviceAsync("game", "monitoring", "all-auto-detect");
+    _ = await streamClient.RotateOutputDeviceAsync("game", "monitoring", "all-auto-detect");
+
+    AssertEqual(4, classicServer.PutPaths.Count(path => path.StartsWith("/ClassicRedirections/", StringComparison.Ordinal)), "classic auto count");
+    AssertEqual(2, streamServer.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream auto count");
+}
+
 static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
 {
     using var server = FakeSonarServer.Start("classic");
@@ -363,6 +408,7 @@ sealed class FakeSonarServer : IDisposable
 
     public string BaseUrl { get; }
     public List<string> Requests { get; } = [];
+    public List<string> PutPaths { get; } = [];
     public string? LastPutPath { get; private set; }
     public string? LastPutQuery { get; private set; }
 
@@ -408,6 +454,7 @@ sealed class FakeSonarServer : IDisposable
         {
             LastPutPath = context.Request.Url?.AbsolutePath;
             LastPutQuery = context.Request.Url?.Query.TrimStart('?');
+            if (LastPutPath != null) PutPaths.Add(LastPutPath);
             if (_failPut)
             {
                 context.Response.StatusCode = 500;
