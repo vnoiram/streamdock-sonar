@@ -68,7 +68,7 @@ Output device switching follows Sonar's redirection routes:
 Rotate actions use `/FallbackSettings/lists` by default so excluded devices are skipped. Enabling `Excluded devices` in the Property Inspector rotates across all non-virtual devices from `/audioDevices`.
 Rotate actions also support knob rotation. `Rotate ticks` controls how many dial ticks are required before a device switch is applied.
 `Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.
-The Property Inspector uses `Invert` for knob direction. Existing `invertKnob` settings are still accepted for compatibility.
+The Property Inspector stores `invert` for knob direction. Existing `invertKnob` settings are still accepted for compatibility.
 If `/ChatMix` reports a disabled state, ChatMix actions show a user-visible error instead of silently applying no audible change.
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.

@@ -143,6 +143,7 @@ public abstract class SonarActionHandler : ActionHandler
             await Connection.SendToPropertyInspectorAsync(Context, new
             {
                 type = "error",
+                source = "devices",
                 message = ex.Message
             });
         }
@@ -174,6 +175,7 @@ public abstract class SonarActionHandler : ActionHandler
             await Connection.SendToPropertyInspectorAsync(Context, new
             {
                 type = "error",
+                source = "profiles",
                 message = ex.Message
             });
         }

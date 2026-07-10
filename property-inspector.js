@@ -7,6 +7,7 @@
   var outputDevices = [];
   var profiles = [];
   var deviceRequestTimer = null;
+  var profileRequestTimer = null;
   var settings = {
     targetRole: 'game',
     streamMix: 'monitoring',
@@ -20,7 +21,7 @@
     step: 2,
     titleLabel: '',
     allowExcludedDevices: false,
-    invertKnob: false
+    invert: false
   };
 
   function byId(id) {
@@ -77,7 +78,9 @@
     normalized.step = normalizeStep(normalized.step || normalized.volumeStep || 2);
     normalized.titleLabel = normalized.titleLabel || '';
     normalized.allowExcludedDevices = normalized.allowExcludedDevices === true || normalized.allowExcludedDevices === 'true';
-    normalized.invertKnob = normalized.invertKnob === true || normalized.invertKnob === 'true';
+    normalized.invert = normalized.invert === true || normalized.invert === 'true' ||
+      normalized.invertKnob === true || normalized.invertKnob === 'true';
+    delete normalized.invertKnob;
     return normalized;
   }
 
@@ -178,7 +181,7 @@
     renderProfileOptions();
     byId('titleLabel').value = settings.titleLabel;
     byId('allowExcludedDevices').checked = !!settings.allowExcludedDevices;
-    byId('invertKnob').checked = !!settings.invertKnob;
+    byId('invertKnob').checked = !!settings.invert;
     Array.prototype.forEach.call(document.querySelectorAll('input[name="overviewTarget"]'), function (input) {
       input.checked = settings.overviewTargets.indexOf(input.value) !== -1;
     });
@@ -243,7 +246,8 @@
     settings.step = normalizeStep(byId('step').value);
     settings.titleLabel = byId('titleLabel').value.trim();
     settings.allowExcludedDevices = byId('allowExcludedDevices').checked;
-    settings.invertKnob = byId('invertKnob').checked;
+    settings.invert = byId('invertKnob').checked;
+    delete settings.invertKnob;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
     if (isProfileAction()) requestProfiles();
   }
@@ -301,6 +305,12 @@
       payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole }
     }));
     byId('profileStatus').textContent = 'loading';
+    if (profileRequestTimer) clearTimeout(profileRequestTimer);
+    profileRequestTimer = setTimeout(function () {
+      if (byId('profileStatus').textContent === 'loading') {
+        byId('profileStatus').textContent = 'no response';
+      }
+    }, 10000);
   }
 
   function handlePluginMessage(payload) {
@@ -313,17 +323,21 @@
       byId('deviceStatus').textContent = outputDevices.length ? outputDevices.length + ' devices' : 'none';
       renderDeviceOptions();
     } else if (payload.type === 'profiles') {
+      if (profileRequestTimer) clearTimeout(profileRequestTimer);
       profiles = Array.isArray(payload.profiles) ? payload.profiles : [];
       if (!settings.targetProfileId && payload.selectedProfileId) settings.targetProfileId = payload.selectedProfileId;
       byId('profileStatus').textContent = profiles.length ? profiles.length + ' profiles' : 'none';
       renderProfileOptions();
     } else if (payload.type === 'error') {
       byId('status').textContent = payload.message || 'error';
-      if (isDeviceAction()) {
+      if (isDeviceAction() || payload.source === 'devices') {
         if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
         byId('deviceStatus').textContent = payload.message || 'error';
       }
-      if (isProfileAction()) byId('profileStatus').textContent = payload.message || 'error';
+      if (isProfileAction() || payload.source === 'profiles') {
+        if (profileRequestTimer) clearTimeout(profileRequestTimer);
+        byId('profileStatus').textContent = payload.message || 'error';
+      }
     }
   }
 

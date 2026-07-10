@@ -210,8 +210,14 @@ static Task SettingsSupportNegativeStepAndInvertAlias()
     });
 
     AssertEqual(-3, settings.Step, "negative step");
-    AssertEqual(true, settings.InvertKnob, "invert alias");
+    AssertEqual(true, settings.InvertKnob, "invert setting");
     AssertEqual(5, settings.RotateTicks, "rotate ticks");
+
+    var legacySettings = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["invertKnob"] = true
+    });
+    AssertEqual(true, legacySettings.InvertKnob, "legacy invertKnob setting");
     return Task.CompletedTask;
 }
 
