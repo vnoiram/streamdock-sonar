@@ -16,10 +16,16 @@ else
   exit 1
 fi
 
+dotnet restore plugin-csharp/StreamDockSonar.csproj \
+  -r "$runtime" \
+  -p:EnableWindowsTargeting=true \
+  -p:StreamDockSdkRoot="$sdk_root"
+
 dotnet publish plugin-csharp/StreamDockSonar.csproj \
   -c "$configuration" \
   -r "$runtime" \
   --self-contained true \
+  --no-restore \
   -p:EnableWindowsTargeting=true \
   -p:StreamDockSdkRoot="$sdk_root" \
   -o dist/plugin

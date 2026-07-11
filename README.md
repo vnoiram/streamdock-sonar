@@ -62,6 +62,7 @@ Output device switching follows Sonar's redirection routes:
 - `stream`: `/StreamRedirections/{1|0}/deviceId/{deviceId}` for Monitoring, Streaming.
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
+The Property Inspector requests device lists over `sendToPlugin`; those requests use the Property Inspector connection context, while saved settings continue to use the action context.
 `Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/1/...` and `All stream` writes `/StreamRedirections/0/...`.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/3/deviceId/{deviceId}` in classic mode and `/StreamRedirections/2/deviceId/{deviceId}` in stream mode.
 `Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes.
@@ -85,6 +86,7 @@ stream-dock-sonar.sdPlugin\plugin\streamdock-sonar.log
 ```
 
 The log includes Stream Dock connection, action discovery, `willAppear`, key/knob events, Sonar discovery, Sonar request routes, and user-visible errors.
+When a Property Inspector request is delivered, the log contains `Action sendToPlugin ...` or `Fallback sendToPlugin ...` followed by the request type such as `devices`, `profiles`, or `diagnostics`.
 If the process fails before logging is configured, `startup-error.log` is written in the same directory.
 
 ## Repository Layout

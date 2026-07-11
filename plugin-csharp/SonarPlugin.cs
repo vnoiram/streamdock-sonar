@@ -93,7 +93,7 @@ public sealed class SonarPlugin : StreamDockPlugin
                     role = device.Role,
                     dataFlow = device.DataFlow
                 }).ToArray()
-            });
+            }, e.Action);
         }
         catch (Exception ex)
         {
@@ -103,7 +103,7 @@ public sealed class SonarPlugin : StreamDockPlugin
                 type = "error",
                 source = "devices",
                 message = ex.Message
-            });
+            }, e.Action);
         }
     }
 
@@ -128,7 +128,7 @@ public sealed class SonarPlugin : StreamDockPlugin
                     virtualAudioDevice = profile.VirtualAudioDevice,
                     isPreset = profile.IsPreset
                 }).ToArray()
-            });
+            }, e.Action);
         }
         catch (Exception ex)
         {
@@ -138,7 +138,7 @@ public sealed class SonarPlugin : StreamDockPlugin
                 type = "error",
                 source = "profiles",
                 message = ex.Message
-            });
+            }, e.Action);
         }
     }
 
@@ -152,7 +152,7 @@ public sealed class SonarPlugin : StreamDockPlugin
         {
             type = "diagnostics",
             diagnostics
-        });
+        }, e.Action);
     }
 
     private static string ReadReplyContext(JsonElement payload, string fallback)

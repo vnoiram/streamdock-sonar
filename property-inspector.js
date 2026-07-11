@@ -2,7 +2,8 @@
   'use strict';
 
   var websocket = null;
-  var context = null;
+  var actionContext = null;
+  var propertyInspectorContext = null;
   var currentAction = '';
   var outputDevices = [];
   var profiles = [];
@@ -32,7 +33,8 @@
 
   function connectElgatoStreamDeckSocket(inPort, inPluginUUID, inRegisterEvent, inInfo, inActionInfo) {
     var actionInfo = parseJson(inActionInfo, {});
-    context = actionInfo.context || inPluginUUID;
+    actionContext = actionInfo.context || '';
+    propertyInspectorContext = inPluginUUID;
     currentAction = actionInfo.action || '';
     settings = Object.assign(settings, normalizeSettings(actionInfo.payload && actionInfo.payload.settings || {}));
 
@@ -297,7 +299,7 @@
   }
 
   function update() {
-    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !actionContext) return;
     settings.sonarMode = normalizeSonarMode(byId('sonarMode').value);
     settings.targetRole = (isRotateOutputAction() || isOutputDeviceAction()) && settings.sonarMode === 'normal'
       ? normalizeOutputTargetRole(byId('targetRole').value)
@@ -318,7 +320,7 @@
     settings.allowExcludedDevices = byId('allowExcludedDevices').checked;
     settings.invert = byId('invertKnob').checked;
     delete settings.invertKnob;
-    websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
+    websocket.send(JSON.stringify({ event: 'setSettings', context: actionContext, payload: settings }));
     if (isModeAwareAction()) requestModeInfo();
     if (isProfileAction()) requestProfiles();
   }
@@ -337,29 +339,29 @@
   }
 
   function requestDiagnostics() {
-    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !propertyInspectorContext) return;
     if (currentAction !== 'local.streamdock.sonar.diagnostics') return;
     websocket.send(JSON.stringify({
       event: 'sendToPlugin',
       action: currentAction,
-      context: context,
-      payload: { command: 'diagnostics', replyContext: context }
+      context: propertyInspectorContext,
+      payload: { command: 'diagnostics', replyContext: propertyInspectorContext }
     }));
     byId('status').textContent = 'checking';
   }
 
   function requestModeInfo() {
-    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !propertyInspectorContext) return;
     if (!isModeAwareAction()) return;
     websocket.send(JSON.stringify({
       event: 'sendToPlugin',
       action: currentAction,
-      context: context,
+      context: propertyInspectorContext,
       payload: {
         command: 'diagnostics',
         targetRole: settings.targetRole,
         streamMix: settings.streamMix,
-        replyContext: context
+        replyContext: propertyInspectorContext
       }
     }));
     byId('modeStatus').textContent = 'checking';
@@ -367,13 +369,13 @@
   }
 
   function requestDevices() {
-    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !propertyInspectorContext) return;
     if (!isDeviceAction()) return;
     websocket.send(JSON.stringify({
       event: 'sendToPlugin',
       action: currentAction,
-      context: context,
-      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render', replyContext: context }
+      context: propertyInspectorContext,
+      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render', replyContext: propertyInspectorContext }
     }));
     byId('deviceStatus').textContent = 'loading';
     if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
@@ -385,13 +387,13 @@
   }
 
   function requestProfiles() {
-    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !propertyInspectorContext) return;
     if (!isProfileAction()) return;
     websocket.send(JSON.stringify({
       event: 'sendToPlugin',
       action: currentAction,
-      context: context,
-      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole, replyContext: context }
+      context: propertyInspectorContext,
+      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole, replyContext: propertyInspectorContext }
     }));
     byId('profileStatus').textContent = 'loading';
     if (profileRequestTimer) clearTimeout(profileRequestTimer);
