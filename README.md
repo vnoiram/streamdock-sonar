@@ -34,7 +34,7 @@ When Sonar is in stream mode, `Stream mix` selects which GG mix is controlled:
 - `Monitoring`
 - `Streaming`
 
-Classic/stream mode itself is not exposed in the normal UI. Diagnostics is the place to inspect mode and route details.
+For output rotation, the Property Inspector exposes GG's mode as `Normal` or `Streamer` instead of the internal `classic` / `stream` names. `Normal` shows the output target selector (`Game`, `Chat`, `Media`, `Aux`). `Streamer` hides the target selector and shows `All monitoring` / `All stream` because Sonar's streamer output route is mix-based.
 
 `Sonar Mixer Overview` can display 1 to 6 selected targets as a generated key image. It clears the Stream Dock text title so the selected targets are shown only by the image renderer. It uses compact labels:
 
@@ -62,7 +62,7 @@ Output device switching follows Sonar's redirection routes:
 - `stream`: `/StreamRedirections/{monitoring|streaming}/deviceId/{deviceId}`.
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
-`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Classic mode supports target-specific output rotation. Stream mode output redirection is mix-based, so use `All stream` or Monitoring/Streaming mix rotation rather than target-specific rotation. It also supports `All auto`, `All classic`, and `All stream` rotation modes matching Sonar Controller's grouped output rotation behavior.
+`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/monitoring/...` and `All stream` writes `/StreamRedirections/streaming/...`.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/mic/deviceId/{deviceId}` in classic mode and `/StreamRedirections/mic/deviceId/{deviceId}` in stream mode.
 `Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes.
 Rotate actions use `/FallbackSettings/lists` by default so excluded devices are skipped. Enabling `Excluded devices` in the Property Inspector rotates across all non-virtual devices from `/audioDevices`.

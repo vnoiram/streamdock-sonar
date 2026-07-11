@@ -29,7 +29,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("stream rotate output uses next render device", StreamRotateOutputUsesNextRenderDeviceAsync),
     ("stream target rotate output is user visible error", StreamTargetRotateOutputIsUserVisibleErrorAsync),
     ("classic rotate all output updates classic channels", ClassicRotateAllOutputUpdatesClassicChannelsAsync),
-    ("stream rotate all output updates stream mixes", StreamRotateAllOutputUpdatesStreamMixesAsync),
+    ("stream rotate monitoring output updates monitoring mix", StreamRotateMonitoringOutputUpdatesMonitoringMixAsync),
+    ("stream rotate streaming output updates streaming mix", StreamRotateStreamingOutputUpdatesStreamingMixAsync),
     ("auto rotate output follows current sonar mode", AutoRotateOutputFollowsCurrentModeAsync),
     ("rotate output can include excluded devices", RotateOutputCanIncludeExcludedDevicesAsync),
     ("rotate output falls back when target fallback list is empty", RotateOutputFallsBackWhenTargetFallbackListIsEmptyAsync),
@@ -379,16 +380,27 @@ static async Task ClassicRotateAllOutputUpdatesClassicChannelsAsync()
     AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/aux/deviceId/render-device-2"), "aux route");
 }
 
-static async Task StreamRotateAllOutputUpdatesStreamMixesAsync()
+static async Task StreamRotateMonitoringOutputUpdatesMonitoringMixAsync()
 {
     using var server = FakeSonarServer.Start("stream");
     using var client = new SonarClient(server.BaseUrl);
 
-    var result = await client.RotateOutputDeviceAsync("game", "monitoring", "all-streaming");
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring", "all-monitoring");
 
-    AssertEqual(true, result.Success, "stream rotate all success");
-    AssertEqual(2, server.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream put count");
+    AssertEqual(true, result.Success, "stream rotate monitoring success");
+    AssertEqual(1, server.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream put count");
     AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/monitoring/deviceId/render-device-2"), "monitoring route");
+}
+
+static async Task StreamRotateStreamingOutputUpdatesStreamingMixAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "streaming", "all-streaming");
+
+    AssertEqual(true, result.Success, "stream rotate streaming success");
+    AssertEqual(1, server.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream put count");
     AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/streaming/deviceId/render-device-2"), "streaming route");
 }
 
@@ -403,7 +415,7 @@ static async Task AutoRotateOutputFollowsCurrentModeAsync()
     _ = await streamClient.RotateOutputDeviceAsync("game", "monitoring", "all-auto-detect");
 
     AssertEqual(4, classicServer.PutPaths.Count(path => path.StartsWith("/ClassicRedirections/", StringComparison.Ordinal)), "classic auto count");
-    AssertEqual(2, streamServer.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream auto count");
+    AssertEqual(1, streamServer.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream auto count");
 }
 
 static async Task RotateOutputCanIncludeExcludedDevicesAsync()

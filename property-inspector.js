@@ -9,6 +9,7 @@
   var deviceRequestTimer = null;
   var profileRequestTimer = null;
   var settings = {
+    sonarMode: 'normal',
     targetRole: 'game',
     streamMix: 'monitoring',
     overviewTargets: ['master', 'game', 'chatRender', 'media', 'aux', 'chatCapture'],
@@ -17,6 +18,7 @@
     deviceId: '',
     targetProfileId: '',
     rotationMode: 'target',
+    streamerOutput: 'monitoring',
     rotateTicks: 3,
     step: 2,
     titleLabel: '',
@@ -75,6 +77,8 @@
     normalized.deviceId = normalized.deviceId || '';
     normalized.targetProfileId = normalized.targetProfileId || '';
     normalized.rotationMode = normalizeRotationMode(normalized.rotationMode);
+    normalized.sonarMode = normalizeSonarMode(normalized.sonarMode || sonarModeFromRotationMode(normalized.rotationMode));
+    normalized.streamerOutput = normalizeStreamMix(normalized.streamerOutput || streamMixFromRotationMode(normalized.rotationMode) || normalized.streamMix);
     normalized.rotateTicks = Math.max(1, Math.min(20, Number(normalized.rotateTicks) || 3));
     normalized.step = normalizeStep(normalized.step || normalized.volumeStep || 2);
     normalized.titleLabel = normalized.titleLabel || '';
@@ -92,6 +96,10 @@
 
   function normalizeStreamMix(streamMix) {
     return streamMix === 'streaming' ? 'streaming' : 'monitoring';
+  }
+
+  function normalizeSonarMode(mode) {
+    return mode === 'streamer' ? 'streamer' : 'normal';
   }
 
   function legacyTargetToRole(target) {
@@ -124,7 +132,27 @@
   }
 
   function normalizeRotationMode(mode) {
-    return mode === 'all-auto-detect' || mode === 'all-classic' || mode === 'all-streaming' ? mode : 'target';
+    return mode === 'all-auto-detect' || mode === 'all-classic' || mode === 'all-monitoring' || mode === 'all-streaming' ? mode : 'target';
+  }
+
+  function sonarModeFromRotationMode(rotationMode) {
+    return rotationMode === 'all-monitoring' || rotationMode === 'all-streaming' ? 'streamer' : 'normal';
+  }
+
+  function streamMixFromRotationMode(rotationMode) {
+    return rotationMode === 'all-streaming' ? 'streaming' : rotationMode === 'all-monitoring' ? 'monitoring' : '';
+  }
+
+  function rotationModeFromUi() {
+    if (!isRotateOutputAction()) return normalizeRotationMode(byId('rotationMode').value);
+    if (byId('sonarMode').value === 'streamer') {
+      return byId('streamerOutput').value === 'streaming' ? 'all-streaming' : 'all-monitoring';
+    }
+    return 'target';
+  }
+
+  function normalizeOutputTargetRole(targetRole) {
+    return ['game', 'chatRender', 'media', 'aux'].indexOf(targetRole) !== -1 ? targetRole : 'game';
   }
 
   function normalizeStep(value) {
@@ -170,6 +198,10 @@
   }
 
   function render() {
+    byId('sonarMode').value = settings.sonarMode;
+    if (isRotateOutputAction() && settings.sonarMode === 'normal') {
+      settings.targetRole = normalizeOutputTargetRole(settings.targetRole);
+    }
     byId('targetRole').value = settings.targetRole;
     byId('streamMix').value = settings.streamMix;
     byId('step').value = settings.step;
@@ -177,6 +209,7 @@
     byId('chatMixStep').value = settings.chatMixStep;
     byId('deviceId').value = settings.deviceId;
     byId('rotationMode').value = settings.rotationMode;
+    byId('streamerOutput').value = settings.streamerOutput;
     byId('rotateTicks').value = settings.rotateTicks;
     renderDeviceOptions();
     renderProfileOptions();
@@ -194,10 +227,14 @@
     var isInputDevice = isInputDeviceAction();
     var isProfile = isProfileAction();
     var isRotateOutput = isRotateOutputAction();
+    var isRotateOutputStreamer = isRotateOutput && settings.sonarMode === 'streamer';
     var isRotateInput = isRotateInputAction();
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
+    Array.prototype.forEach.call(document.querySelectorAll('.sonar-mode-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isRotateOutput);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isRotateInput || isDiagnostics);
+      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isRotateInput || isRotateOutputStreamer || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
@@ -206,10 +243,13 @@
       element.classList.toggle('is-hidden', !isChatMix && !isChatMixDial);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isDiagnostics);
+      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isRotateOutput || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-settings'), function (element) {
-      element.classList.toggle('is-hidden', !isRotateOutput);
+      element.classList.toggle('is-hidden', true);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.streamer-output-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isRotateOutputStreamer);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-mode-status'), function (element) {
       element.classList.toggle('is-hidden', !isRotateOutput);
@@ -230,6 +270,10 @@
     byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isRotateInput || isDiagnostics);
     byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
+    Array.prototype.forEach.call(byId('targetRole').options, function (option) {
+      option.hidden = isRotateOutput && settings.sonarMode === 'normal' && ['master', 'chatCapture'].indexOf(option.value) !== -1;
+      option.disabled = option.hidden;
+    });
 
     Array.prototype.forEach.call(document.querySelectorAll('.diagnostics'), function (element) {
       element.classList.toggle('is-hidden', !isDiagnostics);
@@ -238,14 +282,20 @@
 
   function update() {
     if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
-    settings.targetRole = byId('targetRole').value;
-    settings.streamMix = byId('streamMix').value;
+    settings.sonarMode = normalizeSonarMode(byId('sonarMode').value);
+    settings.targetRole = isRotateOutputAction() && settings.sonarMode === 'normal'
+      ? normalizeOutputTargetRole(byId('targetRole').value)
+      : byId('targetRole').value;
+    settings.streamMix = isRotateOutputAction() && settings.sonarMode === 'streamer'
+      ? normalizeStreamMix(byId('streamerOutput').value)
+      : byId('streamMix').value;
     settings.overviewTargets = selectedOverviewTargets();
     settings.chatMixMode = byId('chatMixMode').value;
     settings.chatMixStep = Math.max(1, Math.min(100, Number(byId('chatMixStep').value) || 10));
     settings.deviceId = byId('deviceId').value.trim();
     settings.targetProfileId = byId('targetProfileId').value;
-    settings.rotationMode = normalizeRotationMode(byId('rotationMode').value);
+    settings.streamerOutput = normalizeStreamMix(byId('streamerOutput').value);
+    settings.rotationMode = rotationModeFromUi();
     settings.rotateTicks = Math.max(1, Math.min(20, Number(byId('rotateTicks').value) || 3));
     settings.step = normalizeStep(byId('step').value);
     settings.titleLabel = byId('titleLabel').value.trim();
@@ -368,13 +418,15 @@
   function renderModeInfo(diagnostics) {
     if (!isRotateOutputAction()) return;
     var mode = diagnostics.mode || '';
-    byId('modeStatus').textContent = mode || 'unknown';
+    byId('modeStatus').textContent = mode === 'classic' ? 'Normal' : mode === 'stream' ? 'Streamer' : 'unknown';
     if (mode === 'classic') {
-      byId('routeStatus').textContent = settings.targetRole === 'master'
-        ? 'Classic: Master has no output route'
-        : 'Classic: ' + settings.targetRole;
+      byId('routeStatus').textContent = settings.sonarMode === 'streamer'
+        ? 'GG is Normal; switch GG to Streamer'
+        : 'Normal: ' + settings.targetRole;
     } else if (mode === 'stream') {
-      byId('routeStatus').textContent = 'Stream: ' + settings.streamMix + ' mix';
+      byId('routeStatus').textContent = settings.sonarMode === 'streamer'
+        ? 'Streamer: all ' + settings.streamerOutput
+        : 'GG is Streamer; switch UI to Streamer';
     } else {
       byId('routeStatus').textContent = 'unknown';
     }
@@ -417,7 +469,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode', 'rotateTicks', 'allowExcludedDevices'].forEach(function (id) {
+    ['sonarMode', 'targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode', 'streamerOutput', 'rotateTicks', 'allowExcludedDevices'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

@@ -68,7 +68,8 @@ public sealed class SonarRotateOutputDeviceHandler(
         {
             "all-auto-detect" => "Auto",
             "all-classic" => "Classic",
-            "all-streaming" => "Stream",
+            "all-monitoring" => "Monitoring",
+            "all-streaming" => "Streaming",
             _ => Label
         };
         return SetTitleAsync($"Rotate\n{label}");

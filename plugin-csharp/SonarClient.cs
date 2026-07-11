@@ -239,7 +239,8 @@ public sealed class SonarClient : IDisposable
         var currentDeviceId = selectedMode switch
         {
             "all-classic" => await GetCurrentOutputDeviceIdAsync("classic", "game", "monitoring", cancellationToken),
-            "all-streaming" => await GetCurrentOutputDeviceIdAsync("stream", "game", "monitoring", cancellationToken),
+            "all-monitoring" => await GetCurrentOutputDeviceIdAsync("stream", "game", "monitoring", cancellationToken),
+            "all-streaming" => await GetCurrentOutputDeviceIdAsync("stream", "game", "streaming", cancellationToken),
             _ => await GetCurrentOutputDeviceIdAsync(mode, targetRole, streamMix, cancellationToken)
         };
         var devices = await GetRotatableOutputDevicesAsync(targetRole, currentDeviceId, allowExcludedDevices, cancellationToken);
@@ -261,7 +262,8 @@ public sealed class SonarClient : IDisposable
         return selectedMode switch
         {
             "all-classic" => await SetAllClassicOutputDevicesAsync(nextDeviceId, cancellationToken),
-            "all-streaming" => await SetAllStreamOutputDevicesAsync(nextDeviceId, cancellationToken),
+            "all-monitoring" => await SetStreamOutputDeviceAsync("monitoring", nextDeviceId, cancellationToken),
+            "all-streaming" => await SetStreamOutputDeviceAsync("streaming", nextDeviceId, cancellationToken),
             _ => await SetOutputDeviceAsync(targetRole, streamMix, nextDeviceId, cancellationToken)
         };
     }
@@ -457,15 +459,13 @@ public sealed class SonarClient : IDisposable
         return SonarOperationResult.Ok("classic", "/ClassicRedirections/*/deviceId", 200);
     }
 
-    private async Task<SonarOperationResult> SetAllStreamOutputDevicesAsync(string deviceId, CancellationToken cancellationToken)
+    private async Task<SonarOperationResult> SetStreamOutputDeviceAsync(string streamMix, string deviceId, CancellationToken cancellationToken)
     {
-        foreach (var streamMix in new[] { "monitoring", "streaming" })
-        {
-            var result = await PutAsync("stream", BuildDeviceRoute("stream", "game", streamMix, deviceId), cancellationToken);
-            if (!result.Success) return result;
-        }
-
-        return SonarOperationResult.Ok("stream", "/StreamRedirections/*/deviceId", 200);
+        var normalizedStreamMix = NormalizeStreamMix(streamMix);
+        var result = await PutAsync("stream", BuildDeviceRoute("stream", "game", normalizedStreamMix, deviceId), cancellationToken);
+        return result.Success
+            ? SonarOperationResult.Ok("stream", $"/StreamRedirections/{normalizedStreamMix}/deviceId", 200)
+            : result;
     }
 
     public async Task<IReadOnlyList<SonarOverviewState>> GetOverviewStatesAsync(IEnumerable<string> targetRoles, string streamMix = "monitoring", CancellationToken cancellationToken = default)
@@ -775,8 +775,9 @@ public sealed class SonarClient : IDisposable
         return rotationMode switch
         {
             "all-classic" => "all-classic",
+            "all-monitoring" => "all-monitoring",
             "all-streaming" => "all-streaming",
-            "all-auto-detect" => NormalizeMode(currentMode) == "stream" ? "all-streaming" : "all-classic",
+            "all-auto-detect" => NormalizeMode(currentMode) == "stream" ? "all-monitoring" : "all-classic",
             _ => "target"
         };
     }

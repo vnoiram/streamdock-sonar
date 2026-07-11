@@ -126,6 +126,7 @@ public sealed record SonarSettings(
         {
             "all-auto-detect" => "all-auto-detect",
             "all-classic" => "all-classic",
+            "all-monitoring" => "all-monitoring",
             "all-streaming" => "all-streaming",
             _ => "target"
         };

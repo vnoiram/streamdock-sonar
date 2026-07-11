@@ -6,6 +6,13 @@
     <script src="property-inspector.js"></script>
   </head>
   <body>
+    <div class="sdpi-item sonar-mode-settings">
+      <div class="sdpi-item-label">Sonar mode</div>
+      <select id="sonarMode" class="sdpi-item-value">
+        <option value="normal">Normal</option>
+        <option value="streamer">Streamer</option>
+      </select>
+    </div>
     <div class="sdpi-item single-target">
       <div class="sdpi-item-label">Target</div>
       <select id="targetRole" class="sdpi-item-value">
@@ -54,6 +61,13 @@
         <option value="all-auto-detect">All auto</option>
         <option value="all-classic">All classic</option>
         <option value="all-streaming">All stream</option>
+      </select>
+    </div>
+    <div class="sdpi-item streamer-output-settings">
+      <div class="sdpi-item-label">Output route</div>
+      <select id="streamerOutput" class="sdpi-item-value">
+        <option value="monitoring">All monitoring</option>
+        <option value="streaming">All stream</option>
       </select>
     </div>
     <div class="sdpi-item rotation-mode-status">
