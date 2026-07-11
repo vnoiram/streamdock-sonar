@@ -34,7 +34,7 @@ When Sonar is in stream mode, `Stream mix` selects which GG mix is controlled:
 - `Monitoring`
 - `Streaming`
 
-For output rotation, the Property Inspector exposes GG's mode as `Normal` or `Streamer` instead of the internal `classic` / `stream` names. `Normal` shows the output target selector (`Game`, `Chat`, `Media`, `Aux`). `Streamer` hides the target selector and shows `All monitoring` / `All stream` because Sonar's streamer output route is mix-based.
+For mode-aware actions, the Property Inspector exposes GG's mode as `Normal` or `Streamer` instead of the internal `classic` / `stream` names. Volume and mute use `Target` in Normal mode, and `Target` plus `Streamer mix` in Streamer mode. Output-device actions use `Target` in Normal mode, and `All monitoring` / `All stream` in Streamer mode because Sonar's streamer output route is mix-based.
 
 `Sonar Mixer Overview` can display 1 to 6 selected targets as a generated key image. It clears the Stream Dock text title so the selected targets are shown only by the image renderer. It uses compact labels:
 

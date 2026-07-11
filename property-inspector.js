@@ -165,6 +165,14 @@
     return currentAction === 'local.streamdock.sonar.overview';
   }
 
+  function isVolumeAction() {
+    return currentAction === 'local.streamdock.sonar.volume';
+  }
+
+  function isMuteAction() {
+    return currentAction === 'local.streamdock.sonar.mute';
+  }
+
   function isChatMixAction() {
     return currentAction === 'local.streamdock.sonar.chatmix';
   }
@@ -197,9 +205,17 @@
     return currentAction === 'local.streamdock.sonar.rotate-input-device';
   }
 
+  function isModeAwareAction() {
+    return isVolumeAction() || isMuteAction() || isOutputDeviceAction() || isRotateOutputAction();
+  }
+
+  function usesStreamerOutputRoute() {
+    return (isOutputDeviceAction() || isRotateOutputAction()) && settings.sonarMode === 'streamer';
+  }
+
   function render() {
     byId('sonarMode').value = settings.sonarMode;
-    if (isRotateOutputAction() && settings.sonarMode === 'normal') {
+    if ((isRotateOutputAction() || isOutputDeviceAction()) && settings.sonarMode === 'normal') {
       settings.targetRole = normalizeOutputTargetRole(settings.targetRole);
     }
     byId('targetRole').value = settings.targetRole;
@@ -227,14 +243,14 @@
     var isInputDevice = isInputDeviceAction();
     var isProfile = isProfileAction();
     var isRotateOutput = isRotateOutputAction();
-    var isRotateOutputStreamer = isRotateOutput && settings.sonarMode === 'streamer';
+    var isStreamerOutputRoute = usesStreamerOutputRoute();
     var isRotateInput = isRotateInputAction();
     var isDiagnostics = currentAction === 'local.streamdock.sonar.diagnostics';
     Array.prototype.forEach.call(document.querySelectorAll('.sonar-mode-settings'), function (element) {
-      element.classList.toggle('is-hidden', !isRotateOutput);
+      element.classList.toggle('is-hidden', !isModeAwareAction());
     });
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isRotateInput || isRotateOutputStreamer || isDiagnostics);
+      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isRotateInput || isStreamerOutputRoute || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
@@ -243,16 +259,16 @@
       element.classList.toggle('is-hidden', !isChatMix && !isChatMixDial);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isRotateOutput || isDiagnostics);
+      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isOutputDevice || isRotateOutput || isDiagnostics || !isModeAwareAction() || settings.sonarMode !== 'streamer');
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-settings'), function (element) {
       element.classList.toggle('is-hidden', true);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.streamer-output-settings'), function (element) {
-      element.classList.toggle('is-hidden', !isRotateOutputStreamer);
+      element.classList.toggle('is-hidden', !isStreamerOutputRoute);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-mode-status'), function (element) {
-      element.classList.toggle('is-hidden', !isRotateOutput);
+      element.classList.toggle('is-hidden', !isModeAwareAction());
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-common-settings'), function (element) {
       element.classList.toggle('is-hidden', !isRotateOutput && !isRotateInput);
@@ -271,7 +287,7 @@
     byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     Array.prototype.forEach.call(byId('targetRole').options, function (option) {
-      option.hidden = isRotateOutput && settings.sonarMode === 'normal' && ['master', 'chatCapture'].indexOf(option.value) !== -1;
+      option.hidden = (isRotateOutput || isOutputDevice) && settings.sonarMode === 'normal' && ['master', 'chatCapture'].indexOf(option.value) !== -1;
       option.disabled = option.hidden;
     });
 
@@ -283,10 +299,10 @@
   function update() {
     if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
     settings.sonarMode = normalizeSonarMode(byId('sonarMode').value);
-    settings.targetRole = isRotateOutputAction() && settings.sonarMode === 'normal'
+    settings.targetRole = (isRotateOutputAction() || isOutputDeviceAction()) && settings.sonarMode === 'normal'
       ? normalizeOutputTargetRole(byId('targetRole').value)
       : byId('targetRole').value;
-    settings.streamMix = isRotateOutputAction() && settings.sonarMode === 'streamer'
+    settings.streamMix = (isRotateOutputAction() || isOutputDeviceAction()) && settings.sonarMode === 'streamer'
       ? normalizeStreamMix(byId('streamerOutput').value)
       : byId('streamMix').value;
     settings.overviewTargets = selectedOverviewTargets();
@@ -303,7 +319,7 @@
     settings.invert = byId('invertKnob').checked;
     delete settings.invertKnob;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
-    if (isRotateOutputAction()) requestModeInfo();
+    if (isModeAwareAction()) requestModeInfo();
     if (isProfileAction()) requestProfiles();
   }
 
@@ -334,7 +350,7 @@
 
   function requestModeInfo() {
     if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
-    if (!isRotateOutputAction()) return;
+    if (!isModeAwareAction()) return;
     websocket.send(JSON.stringify({
       event: 'sendToPlugin',
       action: currentAction,
@@ -416,7 +432,7 @@
   }
 
   function renderModeInfo(diagnostics) {
-    if (!isRotateOutputAction()) return;
+    if (!isModeAwareAction()) return;
     var mode = diagnostics.mode || '';
     byId('modeStatus').textContent = mode === 'classic' ? 'Normal' : mode === 'stream' ? 'Streamer' : 'unknown';
     if (mode === 'classic') {
@@ -424,9 +440,13 @@
         ? 'GG is Normal; switch GG to Streamer'
         : 'Normal: ' + settings.targetRole;
     } else if (mode === 'stream') {
-      byId('routeStatus').textContent = settings.sonarMode === 'streamer'
-        ? 'Streamer: all ' + settings.streamerOutput
-        : 'GG is Streamer; switch UI to Streamer';
+      if (settings.sonarMode !== 'streamer') {
+        byId('routeStatus').textContent = 'GG is Streamer; switch UI to Streamer';
+      } else if (isOutputDeviceAction() || isRotateOutputAction()) {
+        byId('routeStatus').textContent = 'Streamer: all ' + settings.streamerOutput;
+      } else {
+        byId('routeStatus').textContent = 'Streamer: ' + settings.targetRole + ' / ' + settings.streamMix;
+      }
     } else {
       byId('routeStatus').textContent = 'unknown';
     }
