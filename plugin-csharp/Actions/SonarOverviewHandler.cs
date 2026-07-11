@@ -40,7 +40,7 @@ public sealed class SonarOverviewHandler(
         try
         {
             var states = TryGetCachedStates() ?? await Client.GetOverviewStatesAsync(SonarSettings.OverviewTargets, SonarSettings.StreamMix, DisposeToken);
-            await SetTitleAsync(SonarOverviewRenderer.BuildFallbackTitle(states));
+            await SetTitleAsync("");
             await SetImageAsync(SonarOverviewRenderer.BuildImageDataUrl(states));
             if (showOk) await ShowOkAsync();
         }

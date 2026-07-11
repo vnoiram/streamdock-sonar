@@ -43,11 +43,6 @@ public static class SonarOverviewRenderer
         return "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(svg.ToString()));
     }
 
-    public static string BuildFallbackTitle(IReadOnlyList<SonarOverviewState> states)
-    {
-        return string.Join("\n", states.Take(3).Select(state => $"{state.ShortLabel} {state.ValueText}"));
-    }
-
     private static string Escape(string value)
     {
         return WebUtility.HtmlEncode(value);

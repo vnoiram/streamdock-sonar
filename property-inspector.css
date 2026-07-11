@@ -38,6 +38,8 @@ body {
 .sdpi-status {
   color: #c9c9c9;
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .is-hidden {

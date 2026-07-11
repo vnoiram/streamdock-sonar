@@ -36,7 +36,7 @@ When Sonar is in stream mode, `Stream mix` selects which GG mix is controlled:
 
 Classic/stream mode itself is not exposed in the normal UI. Diagnostics is the place to inspect mode and route details.
 
-`Sonar Mixer Overview` can display 1 to 6 selected targets. It uses compact labels on the key:
+`Sonar Mixer Overview` can display 1 to 6 selected targets as a generated key image. It clears the Stream Dock text title so the selected targets are shown only by the image renderer. It uses compact labels:
 
 - `MST`: Master
 - `GME`: Game

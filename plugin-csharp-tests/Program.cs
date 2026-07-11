@@ -151,14 +151,16 @@ static async Task OverviewSelectedTargetsRenderStatesAsync()
 
     var states = await client.GetOverviewStatesAsync(settings.OverviewTargets, settings.StreamMix);
     var image = SonarOverviewRenderer.BuildImageDataUrl(states);
-    var title = SonarOverviewRenderer.BuildFallbackTitle(states);
+    var svg = DecodeSvgImageDataUrl(image);
 
     AssertEqual(2, states.Count, "overview state count");
     AssertEqual("GME", states[0].ShortLabel, "first short label");
     AssertEqual("70", states[0].ValueText, "first value");
     AssertEqual("M", states[1].ValueText, "muted value");
     AssertEqual(true, image.StartsWith("data:image/svg+xml;base64,", StringComparison.Ordinal), "svg data url");
-    AssertEqual(true, title.Contains("GME 70", StringComparison.Ordinal), "fallback title");
+    AssertEqual(true, svg.Contains(">GME<", StringComparison.Ordinal), "svg first label");
+    AssertEqual(true, svg.Contains(">CHT<", StringComparison.Ordinal), "svg second label");
+    AssertEqual(false, svg.Contains(">MED<", StringComparison.Ordinal), "svg excludes unselected label");
 }
 
 static async Task OverviewMissingTargetRendersErrorCellAsync()
@@ -489,6 +491,14 @@ static void AssertEqual<T>(T expected, T actual, string label)
 {
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
         throw new InvalidOperationException($"{label}: expected '{expected}', got '{actual}'");
+}
+
+static string DecodeSvgImageDataUrl(string image)
+{
+    const string prefix = "data:image/svg+xml;base64,";
+    if (!image.StartsWith(prefix, StringComparison.Ordinal))
+        throw new InvalidOperationException("Expected SVG data URL");
+    return Encoding.UTF8.GetString(Convert.FromBase64String(image[prefix.Length..]));
 }
 
 sealed class FakeSonarServer : IDisposable

@@ -39,6 +39,7 @@
       websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inPluginUUID }));
       render();
       requestDiagnostics();
+      requestModeInfo();
       requestDevices();
       requestProfiles();
     };
@@ -210,6 +211,9 @@
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-settings'), function (element) {
       element.classList.toggle('is-hidden', !isRotateOutput);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('.rotation-mode-status'), function (element) {
+      element.classList.toggle('is-hidden', !isRotateOutput);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-common-settings'), function (element) {
       element.classList.toggle('is-hidden', !isRotateOutput && !isRotateInput);
     });
@@ -249,6 +253,7 @@
     settings.invert = byId('invertKnob').checked;
     delete settings.invertKnob;
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: settings }));
+    if (isRotateOutputAction()) requestModeInfo();
     if (isProfileAction()) requestProfiles();
   }
 
@@ -275,6 +280,24 @@
       payload: { command: 'diagnostics', replyContext: context }
     }));
     byId('status').textContent = 'checking';
+  }
+
+  function requestModeInfo() {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN || !context) return;
+    if (!isRotateOutputAction()) return;
+    websocket.send(JSON.stringify({
+      event: 'sendToPlugin',
+      action: currentAction,
+      context: context,
+      payload: {
+        command: 'diagnostics',
+        targetRole: settings.targetRole,
+        streamMix: settings.streamMix,
+        replyContext: context
+      }
+    }));
+    byId('modeStatus').textContent = 'checking';
+    byId('routeStatus').textContent = 'checking';
   }
 
   function requestDevices() {
@@ -317,6 +340,7 @@
     if (payload.type === 'diagnostics') {
       byId('status').textContent = payload.diagnostics && payload.diagnostics.mode ? 'ok' : 'error';
       byId('diagnosticsOutput').textContent = JSON.stringify(payload.diagnostics, null, 2);
+      renderModeInfo(payload.diagnostics || {});
     } else if (payload.type === 'devices') {
       if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
       outputDevices = Array.isArray(payload.devices) ? payload.devices : [];
@@ -338,6 +362,21 @@
         if (profileRequestTimer) clearTimeout(profileRequestTimer);
         byId('profileStatus').textContent = payload.message || 'error';
       }
+    }
+  }
+
+  function renderModeInfo(diagnostics) {
+    if (!isRotateOutputAction()) return;
+    var mode = diagnostics.mode || '';
+    byId('modeStatus').textContent = mode || 'unknown';
+    if (mode === 'classic') {
+      byId('routeStatus').textContent = settings.targetRole === 'master'
+        ? 'Classic: Master has no output route'
+        : 'Classic: ' + settings.targetRole;
+    } else if (mode === 'stream') {
+      byId('routeStatus').textContent = 'Stream: ' + settings.streamMix + ' mix';
+    } else {
+      byId('routeStatus').textContent = 'unknown';
     }
   }
 
