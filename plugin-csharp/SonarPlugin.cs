@@ -50,6 +50,7 @@ public sealed class SonarPlugin : StreamDockPlugin
 
         var command = commandElement.GetString();
         var replyContext = ReadReplyContext(e.Payload, e.Context);
+        Log.Info($"Fallback sendToPlugin command={command} action={e.Action} context={e.Context} replyContext={replyContext}");
         try
         {
             switch (command)
@@ -76,9 +77,11 @@ public sealed class SonarPlugin : StreamDockPlugin
         try
         {
             var dataFlow = ReadString(e.Payload, "dataFlow") ?? "render";
+            Log.Info($"Fallback devices request dataFlow={dataFlow} replyContext={replyContext}");
             var devices = string.Equals(dataFlow, "capture", StringComparison.OrdinalIgnoreCase)
                 ? await SonarRuntime.Client.GetInputDevicesAsync()
                 : await SonarRuntime.Client.GetOutputDevicesAsync();
+            Log.Info($"Fallback devices response dataFlow={dataFlow} count={devices.Count} replyContext={replyContext}");
             await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "devices",
@@ -94,6 +97,7 @@ public sealed class SonarPlugin : StreamDockPlugin
         }
         catch (Exception ex)
         {
+            Log.Warn($"Fallback devices request failed replyContext={replyContext}: {ex.Message}");
             await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "error",
@@ -108,8 +112,10 @@ public sealed class SonarPlugin : StreamDockPlugin
         try
         {
             var targetRole = ReadString(e.Payload, "targetRole") ?? "game";
+            Log.Info($"Fallback profiles request targetRole={targetRole} replyContext={replyContext}");
             var profiles = await SonarRuntime.Client.GetConfigProfilesAsync(targetRole);
             var selected = await SonarRuntime.Client.GetSelectedConfigProfileAsync(targetRole);
+            Log.Info($"Fallback profiles response targetRole={targetRole} count={profiles.Count} selected={selected?.Id ?? ""} replyContext={replyContext}");
             await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "profiles",
@@ -126,6 +132,7 @@ public sealed class SonarPlugin : StreamDockPlugin
         }
         catch (Exception ex)
         {
+            Log.Warn($"Fallback profiles request failed replyContext={replyContext}: {ex.Message}");
             await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "error",
@@ -139,6 +146,7 @@ public sealed class SonarPlugin : StreamDockPlugin
     {
         var targetRole = ReadString(e.Payload, "targetRole") ?? "game";
         var streamMix = ReadString(e.Payload, "streamMix") ?? "monitoring";
+        Log.Info($"Fallback diagnostics request targetRole={targetRole} streamMix={streamMix} replyContext={replyContext}");
         var diagnostics = await SonarRuntime.Client.BuildDiagnosticsAsync(targetRole, streamMix);
         await Connection.SendToPropertyInspectorAsync(replyContext, new
         {

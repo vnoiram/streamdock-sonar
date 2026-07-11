@@ -47,6 +47,12 @@ public abstract class SonarActionHandler : ActionHandler
     public override async Task OnSendToPluginAsync(JsonElement payload)
     {
         var replyContext = ReadReplyContext(payload);
+        var commandForLog = payload.ValueKind == JsonValueKind.Object &&
+                            payload.TryGetProperty("command", out var commandLog) &&
+                            commandLog.ValueKind == JsonValueKind.String
+            ? commandLog.GetString()
+            : "";
+        Log.Info($"Action sendToPlugin context={Context} command={commandForLog} replyContext={replyContext}");
         if (payload.ValueKind == JsonValueKind.Object &&
             payload.TryGetProperty("command", out var command) &&
             string.Equals(command.GetString(), "diagnostics", StringComparison.OrdinalIgnoreCase))
@@ -131,6 +137,7 @@ public abstract class SonarActionHandler : ActionHandler
             var devices = string.Equals(dataFlow, "capture", StringComparison.OrdinalIgnoreCase)
                 ? await Client.GetInputDevicesAsync(DisposeToken)
                 : await Client.GetOutputDevicesAsync(DisposeToken);
+            Log.Info($"Action devices response context={Context} dataFlow={dataFlow} count={devices.Count} replyContext={replyContext}");
             await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "devices",
@@ -146,6 +153,7 @@ public abstract class SonarActionHandler : ActionHandler
         }
         catch (Exception ex)
         {
+            Log.Warn($"Action devices request failed context={Context} replyContext={replyContext}: {ex.Message}");
             await Connection.SendToPropertyInspectorAsync(replyContext, new
             {
                 type = "error",
