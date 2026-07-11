@@ -345,7 +345,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: propertyInspectorContext,
-      payload: { command: 'diagnostics', replyContext: propertyInspectorContext }
+      payload: { command: 'diagnostics', replyContext: actionContext }
     }));
     byId('status').textContent = 'checking';
   }
@@ -361,7 +361,7 @@
         command: 'diagnostics',
         targetRole: settings.targetRole,
         streamMix: settings.streamMix,
-        replyContext: propertyInspectorContext
+        replyContext: actionContext
       }
     }));
     byId('modeStatus').textContent = 'checking';
@@ -375,7 +375,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: propertyInspectorContext,
-      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render', replyContext: propertyInspectorContext }
+      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render', replyContext: actionContext }
     }));
     byId('deviceStatus').textContent = 'loading';
     if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
@@ -393,7 +393,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: propertyInspectorContext,
-      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole, replyContext: propertyInspectorContext }
+      payload: { command: 'profiles', targetRole: byId('targetRole').value || settings.targetRole, replyContext: actionContext }
     }));
     byId('profileStatus').textContent = 'loading';
     if (profileRequestTimer) clearTimeout(profileRequestTimer);
