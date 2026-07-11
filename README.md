@@ -58,12 +58,12 @@ The plugin reads `/mode` before writes:
 
 Output device switching follows Sonar's redirection routes:
 
-- `classic`: `/ClassicRedirections/{channel}/deviceId/{deviceId}`.
-- `stream`: `/StreamRedirections/{monitoring|streaming}/deviceId/{deviceId}`.
+- `classic`: `/ClassicRedirections/{1|2|7|8}/deviceId/{deviceId}` for Game, Chat, Media, Aux.
+- `stream`: `/StreamRedirections/{1|0}/deviceId/{deviceId}` for Monitoring, Streaming.
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
-`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/monitoring/...` and `All stream` writes `/StreamRedirections/streaming/...`.
-`Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/mic/deviceId/{deviceId}` in classic mode and `/StreamRedirections/mic/deviceId/{deviceId}` in stream mode.
+`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/1/...` and `All stream` writes `/StreamRedirections/0/...`.
+`Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/3/deviceId/{deviceId}` in classic mode and `/StreamRedirections/2/deviceId/{deviceId}` in stream mode.
 `Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes.
 Rotate actions use `/FallbackSettings/lists` by default so excluded devices are skipped. Enabling `Excluded devices` in the Property Inspector rotates across all non-virtual devices from `/audioDevices`.
 Rotate actions also support knob rotation. `Rotate ticks` controls how many dial ticks are required before a device switch is applied.

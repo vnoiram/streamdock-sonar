@@ -413,7 +413,7 @@ public sealed class SonarClient : IDisposable
         if (document.RootElement.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException($"Sonar {route} response is not an array");
 
-        var desiredId = normalizedMode == "stream" ? NormalizeStreamMix(streamMix) : HttpChannel(targetRole, normalizedMode);
+        var desiredId = normalizedMode == "stream" ? StreamRedirectionChannel(streamMix) : ClassicRedirectionChannel(targetRole);
         foreach (var item in document.RootElement.EnumerateArray())
         {
             var redirection = ReadRedirection(item, normalizedMode);
@@ -435,17 +435,18 @@ public sealed class SonarClient : IDisposable
         if (document.RootElement.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException($"Sonar {route} response is not an array");
 
+        var desiredId = normalizedMode == "stream" ? StreamRedirectionChannel("mic") : ClassicRedirectionChannel("chatCapture");
         foreach (var item in document.RootElement.EnumerateArray())
         {
             var redirection = ReadRedirection(item, normalizedMode);
-            if (string.Equals(redirection.Id, "mic", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(redirection.Id, desiredId, StringComparison.OrdinalIgnoreCase))
             {
                 LastResult = SonarOperationResult.Ok(normalizedMode, route);
                 return redirection.DeviceId;
             }
         }
 
-        throw new InvalidOperationException("Sonar redirection 'mic' was not found");
+        throw new InvalidOperationException($"Sonar redirection '{desiredId}' was not found");
     }
 
     private async Task<SonarOperationResult> SetAllClassicOutputDevicesAsync(string deviceId, CancellationToken cancellationToken)
@@ -722,20 +723,20 @@ public sealed class SonarClient : IDisposable
         var escapedDeviceId = Uri.EscapeDataString(deviceId);
         var normalizedMode = NormalizeMode(mode);
         if (normalizedMode == "stream")
-            return $"/StreamRedirections/{NormalizeStreamMix(streamMix)}/deviceId/{escapedDeviceId}";
+            return $"/StreamRedirections/{StreamRedirectionChannel(streamMix)}/deviceId/{escapedDeviceId}";
 
         if (targetRole == "master")
             throw new InvalidOperationException("Master does not have a classic output redirection route");
 
-        return $"/ClassicRedirections/{HttpChannel(targetRole, normalizedMode)}/deviceId/{escapedDeviceId}";
+        return $"/ClassicRedirections/{ClassicRedirectionChannel(targetRole)}/deviceId/{escapedDeviceId}";
     }
 
     private static string BuildInputDeviceRoute(string mode, string deviceId)
     {
         var escapedDeviceId = Uri.EscapeDataString(deviceId);
         return NormalizeMode(mode) == "stream"
-            ? $"/StreamRedirections/mic/deviceId/{escapedDeviceId}"
-            : $"/ClassicRedirections/mic/deviceId/{escapedDeviceId}";
+            ? $"/StreamRedirections/{StreamRedirectionChannel("mic")}/deviceId/{escapedDeviceId}"
+            : $"/ClassicRedirections/{ClassicRedirectionChannel("chatCapture")}/deviceId/{escapedDeviceId}";
     }
 
     private static string VolumeSettingsRoute(string mode)
@@ -754,6 +755,30 @@ public sealed class SonarClient : IDisposable
             "aux" => "aux",
             "chatCapture" => "chatCapture",
             _ => throw new InvalidOperationException($"Unsupported Sonar targetRole: {targetRole}")
+        };
+    }
+
+    private static string ClassicRedirectionChannel(string targetRole)
+    {
+        return targetRole switch
+        {
+            "game" => "1",
+            "chatRender" => "2",
+            "chatCapture" => "3",
+            "media" => "7",
+            "aux" => "8",
+            _ => throw new InvalidOperationException($"Unsupported Sonar classic redirection targetRole: {targetRole}")
+        };
+    }
+
+    private static string StreamRedirectionChannel(string streamMix)
+    {
+        return streamMix switch
+        {
+            "streaming" => "0",
+            "monitoring" => "1",
+            "mic" => "2",
+            _ => NormalizeStreamMix(streamMix) == "streaming" ? "0" : "1"
         };
     }
 
@@ -885,9 +910,13 @@ public sealed class SonarClient : IDisposable
 
     private static string? TryGetString(JsonElement element, string propertyName)
     {
-        return TryGetPropertyIgnoreCase(element, propertyName, out var property) && property.ValueKind == JsonValueKind.String
-            ? property.GetString()
-            : null;
+        if (!TryGetPropertyIgnoreCase(element, propertyName, out var property)) return null;
+        return property.ValueKind switch
+        {
+            JsonValueKind.String => property.GetString(),
+            JsonValueKind.Number => property.GetRawText(),
+            _ => null
+        };
     }
 
     private static bool? TryGetBool(JsonElement element, string propertyName)

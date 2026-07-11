@@ -235,7 +235,7 @@ static async Task ClassicOutputDeviceUsesRedirectionRouteAsync()
     var result = await client.SetOutputDeviceAsync("game", "monitoring", "{game-device}", CancellationToken.None);
 
     AssertEqual(true, result.Success, "classic output success");
-    AssertEqual("/ClassicRedirections/game/deviceId/%7Bgame-device%7D", server.LastPutPath, "classic output path");
+    AssertEqual("/ClassicRedirections/1/deviceId/%7Bgame-device%7D", server.LastPutPath, "classic output path");
 }
 
 static async Task StreamOutputDeviceUsesRedirectionRouteAsync()
@@ -246,7 +246,7 @@ static async Task StreamOutputDeviceUsesRedirectionRouteAsync()
     var result = await client.SetOutputDeviceAsync("game", "streaming", "stream-device", CancellationToken.None);
 
     AssertEqual(true, result.Success, "stream output success");
-    AssertEqual("/StreamRedirections/streaming/deviceId/stream-device", server.LastPutPath, "stream output path");
+    AssertEqual("/StreamRedirections/0/deviceId/stream-device", server.LastPutPath, "stream output path");
 }
 
 static async Task ClassicMasterOutputDeviceIsUserVisibleErrorAsync()
@@ -281,7 +281,7 @@ static async Task ClassicInputDeviceUsesMicRedirectionRouteAsync()
     var result = await client.SetInputDeviceAsync("{mic-device}", CancellationToken.None);
 
     AssertEqual(true, result.Success, "classic input success");
-    AssertEqual("/ClassicRedirections/mic/deviceId/%7Bmic-device%7D", server.LastPutPath, "classic input path");
+    AssertEqual("/ClassicRedirections/3/deviceId/%7Bmic-device%7D", server.LastPutPath, "classic input path");
 }
 
 static async Task StreamInputDeviceUsesMicRedirectionRouteAsync()
@@ -292,7 +292,7 @@ static async Task StreamInputDeviceUsesMicRedirectionRouteAsync()
     var result = await client.SetInputDeviceAsync("stream-mic", CancellationToken.None);
 
     AssertEqual(true, result.Success, "stream input success");
-    AssertEqual("/StreamRedirections/mic/deviceId/stream-mic", server.LastPutPath, "stream input path");
+    AssertEqual("/StreamRedirections/2/deviceId/stream-mic", server.LastPutPath, "stream input path");
 }
 
 static async Task InputDevicesFiltersActiveCaptureDevicesAsync()
@@ -339,7 +339,7 @@ static async Task ClassicRotateOutputUsesNextRenderDeviceAsync()
     var result = await client.RotateOutputDeviceAsync("game", "monitoring");
 
     AssertEqual(true, result.Success, "classic rotate success");
-    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "classic rotate path");
+    AssertEqual("/ClassicRedirections/1/deviceId/render-device-2", server.LastPutPath, "classic rotate path");
 }
 
 static async Task StreamRotateOutputUsesNextRenderDeviceAsync()
@@ -350,7 +350,7 @@ static async Task StreamRotateOutputUsesNextRenderDeviceAsync()
     var result = await client.RotateOutputDeviceAsync("game", "streaming", "all-streaming");
 
     AssertEqual(true, result.Success, "stream rotate success");
-    AssertEqual("/StreamRedirections/streaming/deviceId/render-device-2", server.LastPutPath, "stream rotate path");
+    AssertEqual("/StreamRedirections/0/deviceId/render-device-2", server.LastPutPath, "stream rotate path");
 }
 
 static async Task StreamTargetRotateOutputIsUserVisibleErrorAsync()
@@ -374,10 +374,10 @@ static async Task ClassicRotateAllOutputUpdatesClassicChannelsAsync()
 
     AssertEqual(true, result.Success, "classic rotate all success");
     AssertEqual(4, server.PutPaths.Count(path => path.StartsWith("/ClassicRedirections/", StringComparison.Ordinal)), "classic put count");
-    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/game/deviceId/render-device-2"), "game route");
-    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/chatRender/deviceId/render-device-2"), "chat route");
-    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/media/deviceId/render-device-2"), "media route");
-    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/aux/deviceId/render-device-2"), "aux route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/1/deviceId/render-device-2"), "game route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/2/deviceId/render-device-2"), "chat route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/7/deviceId/render-device-2"), "media route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/8/deviceId/render-device-2"), "aux route");
 }
 
 static async Task StreamRotateMonitoringOutputUpdatesMonitoringMixAsync()
@@ -389,7 +389,7 @@ static async Task StreamRotateMonitoringOutputUpdatesMonitoringMixAsync()
 
     AssertEqual(true, result.Success, "stream rotate monitoring success");
     AssertEqual(1, server.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream put count");
-    AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/monitoring/deviceId/render-device-2"), "monitoring route");
+    AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/1/deviceId/render-device-2"), "monitoring route");
 }
 
 static async Task StreamRotateStreamingOutputUpdatesStreamingMixAsync()
@@ -401,7 +401,7 @@ static async Task StreamRotateStreamingOutputUpdatesStreamingMixAsync()
 
     AssertEqual(true, result.Success, "stream rotate streaming success");
     AssertEqual(1, server.PutPaths.Count(path => path.StartsWith("/StreamRedirections/", StringComparison.Ordinal)), "stream put count");
-    AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/streaming/deviceId/render-device-2"), "streaming route");
+    AssertEqual(true, server.PutPaths.Contains("/StreamRedirections/0/deviceId/render-device-2"), "streaming route");
 }
 
 static async Task AutoRotateOutputFollowsCurrentModeAsync()
@@ -427,7 +427,7 @@ static async Task RotateOutputCanIncludeExcludedDevicesAsync()
 
     AssertEqual(true, result.Success, "rotate with excluded success");
     AssertEqual(false, server.Requests.Contains("/FallbackSettings/lists"), "fallback list not used");
-    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate with excluded path");
+    AssertEqual("/ClassicRedirections/1/deviceId/render-device-2", server.LastPutPath, "rotate with excluded path");
 }
 
 static async Task RotateOutputFallsBackWhenTargetFallbackListIsEmptyAsync()
@@ -438,7 +438,7 @@ static async Task RotateOutputFallsBackWhenTargetFallbackListIsEmptyAsync()
     var result = await client.RotateOutputDeviceAsync("chatRender", "monitoring");
 
     AssertEqual(true, result.Success, "rotate empty fallback success");
-    AssertEqual("/ClassicRedirections/chatRender/deviceId/render-device-2", server.LastPutPath, "rotate empty fallback path");
+    AssertEqual("/ClassicRedirections/2/deviceId/render-device-2", server.LastPutPath, "rotate empty fallback path");
 }
 
 static async Task RotateOutputMatchesEncodedCurrentDeviceIdAsync()
@@ -449,7 +449,7 @@ static async Task RotateOutputMatchesEncodedCurrentDeviceIdAsync()
     var result = await client.RotateOutputDeviceAsync("game", "monitoring");
 
     AssertEqual(true, result.Success, "rotate encoded current success");
-    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate encoded current path");
+    AssertEqual("/ClassicRedirections/1/deviceId/render-device-2", server.LastPutPath, "rotate encoded current path");
 }
 
 static async Task RotateOutputSupportsPreviousDirectionAsync()
@@ -460,7 +460,7 @@ static async Task RotateOutputSupportsPreviousDirectionAsync()
     var result = await client.RotateOutputDeviceAsync("game", "monitoring", direction: -1);
 
     AssertEqual(true, result.Success, "rotate previous success");
-    AssertEqual("/ClassicRedirections/game/deviceId/render-device-2", server.LastPutPath, "rotate previous wraps to last path");
+    AssertEqual("/ClassicRedirections/1/deviceId/render-device-2", server.LastPutPath, "rotate previous wraps to last path");
 }
 
 static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
@@ -471,7 +471,7 @@ static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
     var result = await client.RotateInputDeviceAsync();
 
     AssertEqual(true, result.Success, "classic rotate input success");
-    AssertEqual("/ClassicRedirections/mic/deviceId/capture-device-2", server.LastPutPath, "classic rotate input path");
+    AssertEqual("/ClassicRedirections/3/deviceId/capture-device-2", server.LastPutPath, "classic rotate input path");
 }
 
 static async Task StreamRotateInputUsesNextCaptureDeviceAsync()
@@ -482,7 +482,7 @@ static async Task StreamRotateInputUsesNextCaptureDeviceAsync()
     var result = await client.RotateInputDeviceAsync();
 
     AssertEqual(true, result.Success, "stream rotate input success");
-    AssertEqual("/StreamRedirections/mic/deviceId/capture-device-2", server.LastPutPath, "stream rotate input path");
+    AssertEqual("/StreamRedirections/2/deviceId/capture-device-2", server.LastPutPath, "stream rotate input path");
 }
 
 static Task LegacyStreamerTargetMapsStreamMix()
@@ -648,11 +648,11 @@ sealed class FakeSonarServer : IDisposable
             var gameDeviceId = _encodedGameDevice ? "render%2Ddevice" : "render-device";
             await WriteAsync(context, """
             [
-              { "id": "game", "deviceId": "__GAME_DEVICE_ID__", "isRunning": true },
-              { "id": "chatRender", "deviceId": "render-device", "isRunning": true },
-              { "id": "media", "deviceId": "render-device", "isRunning": true },
-              { "id": "aux", "deviceId": "render-device", "isRunning": true },
-              { "id": "mic", "deviceId": "capture-device", "isRunning": true }
+              { "id": 1, "deviceId": "__GAME_DEVICE_ID__", "isRunning": true },
+              { "id": 2, "deviceId": "render-device", "isRunning": true },
+              { "id": 7, "deviceId": "render-device", "isRunning": true },
+              { "id": 8, "deviceId": "render-device", "isRunning": true },
+              { "id": 3, "deviceId": "capture-device", "isRunning": true }
             ]
             """.Replace("__GAME_DEVICE_ID__", gameDeviceId));
             return;
@@ -662,9 +662,9 @@ sealed class FakeSonarServer : IDisposable
         {
             await WriteAsync(context, """
             [
-              { "streamRedirectionId": "monitoring", "deviceId": "render-device", "isRunning": true },
-              { "streamRedirectionId": "streaming", "deviceId": "render-device", "isRunning": true },
-              { "streamRedirectionId": "mic", "deviceId": "capture-device", "isRunning": true }
+              { "streamRedirectionId": 1, "deviceId": "render-device", "isRunning": true },
+              { "streamRedirectionId": 0, "deviceId": "render-device", "isRunning": true },
+              { "streamRedirectionId": 2, "deviceId": "capture-device", "isRunning": true }
             ]
             """);
             return;
