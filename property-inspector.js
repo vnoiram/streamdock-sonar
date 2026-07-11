@@ -206,7 +206,7 @@
   }
 
   function isModeAwareAction() {
-    return isVolumeAction() || isMuteAction() || isOutputDeviceAction() || isRotateOutputAction();
+    return isVolumeAction() || isMuteAction() || isOutputDeviceAction() || isRotateOutputAction() || isInputDeviceAction() || isRotateInputAction();
   }
 
   function usesStreamerOutputRoute() {
@@ -436,14 +436,20 @@
     var mode = diagnostics.mode || '';
     byId('modeStatus').textContent = mode === 'classic' ? 'Normal' : mode === 'stream' ? 'Streamer' : 'unknown';
     if (mode === 'classic') {
-      byId('routeStatus').textContent = settings.sonarMode === 'streamer'
-        ? 'GG is Normal; switch GG to Streamer'
-        : 'Normal: ' + settings.targetRole;
+      if (settings.sonarMode === 'streamer') {
+        byId('routeStatus').textContent = 'GG is Normal; switch GG to Streamer';
+      } else if (isInputDeviceAction() || isRotateInputAction()) {
+        byId('routeStatus').textContent = 'Normal: microphone';
+      } else {
+        byId('routeStatus').textContent = 'Normal: ' + settings.targetRole;
+      }
     } else if (mode === 'stream') {
       if (settings.sonarMode !== 'streamer') {
         byId('routeStatus').textContent = 'GG is Streamer; switch UI to Streamer';
       } else if (isOutputDeviceAction() || isRotateOutputAction()) {
         byId('routeStatus').textContent = 'Streamer: all ' + settings.streamerOutput;
+      } else if (isInputDeviceAction() || isRotateInputAction()) {
+        byId('routeStatus').textContent = 'Streamer: microphone';
       } else {
         byId('routeStatus').textContent = 'Streamer: ' + settings.targetRole + ' / ' + settings.streamMix;
       }
