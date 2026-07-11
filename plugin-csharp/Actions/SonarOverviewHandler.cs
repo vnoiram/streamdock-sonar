@@ -28,6 +28,13 @@ public sealed class SonarOverviewHandler(
         return RefreshAsync(showOk: false);
     }
 
+    public override Task OnSettingsChangedAsync(Dictionary<string, object> settings)
+    {
+        ApplySonarSettings(settings);
+        Log.Info($"Overview settings refresh context={Context} streamMix={SonarSettings.StreamMix} targets={string.Join(",", SonarSettings.OverviewTargets)}");
+        return RefreshAsync(showOk: false, useCache: false);
+    }
+
     public override async Task OnKeyDownAsync()
     {
         Log.Info($"Overview keyDown context={Context} streamMix={SonarSettings.StreamMix} targets={string.Join(",", SonarSettings.OverviewTargets)}");
@@ -35,11 +42,13 @@ public sealed class SonarOverviewHandler(
         await ShowOkAsync();
     }
 
-    private async Task RefreshAsync(bool showOk)
+    private async Task RefreshAsync(bool showOk, bool useCache = true)
     {
         try
         {
-            var states = TryGetCachedStates() ?? await Client.GetOverviewStatesAsync(SonarSettings.OverviewTargets, SonarSettings.StreamMix, DisposeToken);
+            var states = useCache
+                ? TryGetCachedStates() ?? await Client.GetOverviewStatesAsync(SonarSettings.OverviewTargets, SonarSettings.StreamMix, DisposeToken)
+                : await Client.GetOverviewStatesAsync(SonarSettings.OverviewTargets, SonarSettings.StreamMix, DisposeToken);
             await SetTitleAsync("");
             await SetImageAsync(SonarOverviewRenderer.BuildImageDataUrl(states));
             if (showOk) await ShowOkAsync();

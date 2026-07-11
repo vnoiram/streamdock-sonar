@@ -21,11 +21,16 @@ public abstract class SonarActionHandler : ActionHandler
 
     public override Task OnSettingsChangedAsync(Dictionary<string, object> settings)
     {
+        ApplySonarSettings(settings);
+        return RefreshSharedStateAsync();
+    }
+
+    protected void ApplySonarSettings(Dictionary<string, object> settings)
+    {
         UpdateSettings(settings);
         SonarSettings = SonarSettings.FromDictionary(settings);
         SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
         Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
-        return RefreshSharedStateAsync();
     }
 
     protected override void Dispose(bool disposing)
