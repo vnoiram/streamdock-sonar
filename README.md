@@ -14,9 +14,9 @@ Current version: `0.3.10`.
 - `Sonar ChatMix`: moves ChatMix toward Chat/Game or resets it to center.
 - `Sonar ChatMix Dial`: adjusts ChatMix with a knob; dial press resets to center.
 - `Sonar Output Device`: switches a Sonar output device by configured Sonar `deviceId`.
-- `Sonar Rotate Output`: rotates a selected Sonar output target to the next active non-virtual render device.
+- `Sonar Rotate Output`: rotates a selected Sonar output target to the next active non-virtual render device; key/knob press applies the configured `deviceId`.
 - `Sonar Input Device`: switches the Sonar microphone input device by configured Sonar `deviceId`.
-- `Sonar Rotate Input`: rotates the Sonar microphone input to the next active non-virtual capture device.
+- `Sonar Rotate Input`: rotates the Sonar microphone input to the next active non-virtual capture device; key/knob press applies the configured `deviceId`.
 - `Sonar Profile`: selects a Sonar EQ/profile for a mixer target.
 - `Diagnostics`: sends Sonar discovery, `/mode`, volume settings shape, and last request status to the Property Inspector.
 
@@ -63,11 +63,11 @@ Output device switching follows Sonar's redirection routes:
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
 The Property Inspector requests device lists over `sendToPlugin`; those requests use the Property Inspector connection context, while saved settings continue to use the action context.
-`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/1/...` and `All stream` writes `/StreamRedirections/0/...`.
+`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/1/...` and `All stream` writes `/StreamRedirections/0/...`. Pressing the key or knob applies the configured `deviceId` instead of rotating.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/3/deviceId/{deviceId}` in classic mode and `/StreamRedirections/2/deviceId/{deviceId}` in stream mode.
-`Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes.
+`Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes. Pressing the key or knob applies the configured `deviceId` instead of rotating.
 Rotate actions use `/FallbackSettings/lists` by default so excluded devices are skipped. Enabling `Excluded devices` in the Property Inspector rotates across all non-virtual devices from `/audioDevices`.
-Rotate actions also support knob rotation. `Rotate ticks` controls how many dial ticks are required before a device switch is applied.
+Rotate actions support knob rotation. `Rotate ticks` controls how many dial ticks are required before a rotated device switch is applied.
 `Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.
 The Property Inspector stores `invert` for knob direction. Existing `invertKnob` settings are still accepted for compatibility.
 If `/ChatMix` reports a disabled state, ChatMix actions show a user-visible error instead of silently applying no audible change.

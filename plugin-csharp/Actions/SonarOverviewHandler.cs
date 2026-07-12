@@ -30,7 +30,7 @@ public sealed class SonarOverviewHandler(
 
     public override Task OnSettingsChangedAsync(Dictionary<string, object> settings)
     {
-        ApplySonarSettings(settings);
+        UpdateSettings(settings);
         Log.Info($"Overview settings refresh context={Context} streamMix={SonarSettings.StreamMix} targets={string.Join(",", SonarSettings.OverviewTargets)}");
         return RefreshAsync(showOk: false, useCache: false);
     }

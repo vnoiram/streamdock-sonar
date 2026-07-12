@@ -11,7 +11,7 @@ namespace StreamDockSonar.Actions;
     Controllers = ["Keypad", "Knob"],
     PropertyInspectorPath = "property-inspector.html"
 )]
-[SDActionState(Image = "icons/plugin", Title = "Rotate")]
+[SDActionState(Image = "icons/plugin", Title = "Output")]
 public sealed class SonarRotateOutputDeviceHandler(
     StreamDockConnection connection,
     string context,
@@ -27,8 +27,14 @@ public sealed class SonarRotateOutputDeviceHandler(
 
     public override async Task OnKeyDownAsync()
     {
-        Log.Info($"RotateOutput keyDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
-        await RotateAsync(1);
+        Log.Info($"RotateOutput keyDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} deviceId={ShortDeviceId(SonarSettings.DeviceId)}");
+        await SetConfiguredDeviceAsync();
+    }
+
+    public override async Task OnDialDownAsync()
+    {
+        Log.Info($"RotateOutput dialDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} deviceId={ShortDeviceId(SonarSettings.DeviceId)}");
+        await SetConfiguredDeviceAsync();
     }
 
     public override async Task OnDialRotateAsync(int ticks, bool pressed)
@@ -41,6 +47,25 @@ public sealed class SonarRotateOutputDeviceHandler(
         _pendingTicks = 0;
         Log.Info($"RotateOutput dialRotate context={Context} direction={direction}");
         await RotateAsync(direction);
+    }
+
+    private async Task SetConfiguredDeviceAsync()
+    {
+        var result = await Client.SetOutputDeviceAsync(
+            SonarSettings.TargetRole,
+            SonarSettings.StreamMix,
+            SonarSettings.DeviceId,
+            DisposeToken);
+
+        if (!result.Success)
+        {
+            await ShowErrorAsync(result.ErrorSummary ?? "Sonar output device update failed");
+            return;
+        }
+
+        await SetTitleAsync("Output\nSet");
+        await ShowOkAsync();
+        await RefreshSharedStateAsync();
     }
 
     private async Task RotateAsync(int direction)
@@ -72,6 +97,6 @@ public sealed class SonarRotateOutputDeviceHandler(
             "all-streaming" => "Streaming",
             _ => Label
         };
-        return SetTitleAsync($"Rotate\n{label}");
+        return SetTitleAsync($"Output\n{label}");
     }
 }

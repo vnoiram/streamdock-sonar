@@ -11,7 +11,7 @@ namespace StreamDockSonar.Actions;
     Controllers = ["Keypad", "Knob"],
     PropertyInspectorPath = "property-inspector.html"
 )]
-[SDActionState(Image = "icons/plugin", Title = "Rotate Mic")]
+[SDActionState(Image = "icons/plugin", Title = "Input")]
 public sealed class SonarRotateInputDeviceHandler(
     StreamDockConnection connection,
     string context,
@@ -27,8 +27,14 @@ public sealed class SonarRotateInputDeviceHandler(
 
     public override async Task OnKeyDownAsync()
     {
-        Log.Info($"RotateInput keyDown context={Context}");
-        await RotateAsync(1);
+        Log.Info($"RotateInput keyDown context={Context} deviceId={ShortDeviceId(SonarSettings.DeviceId)}");
+        await SetConfiguredDeviceAsync();
+    }
+
+    public override async Task OnDialDownAsync()
+    {
+        Log.Info($"RotateInput dialDown context={Context} deviceId={ShortDeviceId(SonarSettings.DeviceId)}");
+        await SetConfiguredDeviceAsync();
     }
 
     public override async Task OnDialRotateAsync(int ticks, bool pressed)
@@ -41,6 +47,20 @@ public sealed class SonarRotateInputDeviceHandler(
         _pendingTicks = 0;
         Log.Info($"RotateInput dialRotate context={Context} direction={direction}");
         await RotateAsync(direction);
+    }
+
+    private async Task SetConfiguredDeviceAsync()
+    {
+        var result = await Client.SetInputDeviceAsync(SonarSettings.DeviceId, DisposeToken);
+        if (!result.Success)
+        {
+            await ShowErrorAsync(result.ErrorSummary ?? "Sonar input device update failed");
+            return;
+        }
+
+        await SetTitleAsync("Input\nSet");
+        await ShowOkAsync();
+        await RefreshSharedStateAsync();
     }
 
     private async Task RotateAsync(int direction)
@@ -58,6 +78,6 @@ public sealed class SonarRotateInputDeviceHandler(
 
     public override Task UpdateDisplayAsync()
     {
-        return SetTitleAsync("Rotate\nMic");
+        return SetTitleAsync("Input");
     }
 }

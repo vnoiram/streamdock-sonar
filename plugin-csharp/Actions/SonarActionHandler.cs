@@ -19,18 +19,24 @@ public abstract class SonarActionHandler : ActionHandler
         SonarRuntime.State.StateChanged += OnRuntimeStateChangedAsync;
     }
 
+    public override void UpdateSettings(Dictionary<string, object>? settings)
+    {
+        base.UpdateSettings(settings);
+        SonarSettings = SonarSettings.FromDictionary(settings);
+        SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
+    }
+
     public override Task OnSettingsChangedAsync(Dictionary<string, object> settings)
     {
-        ApplySonarSettings(settings);
+        UpdateSettings(settings);
+        Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} rotationMode={SonarSettings.RotationMode} deviceId={ShortDeviceId(SonarSettings.DeviceId)} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
         return RefreshSharedStateAsync();
     }
 
-    protected void ApplySonarSettings(Dictionary<string, object> settings)
+    protected static string ShortDeviceId(string deviceId)
     {
-        UpdateSettings(settings);
-        SonarSettings = SonarSettings.FromDictionary(settings);
-        SonarRuntime.State.SetStreamMix(SonarSettings.StreamMix);
-        Log.Info($"Settings changed context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} step={SonarSettings.Step} invert={SonarSettings.InvertKnob}");
+        if (string.IsNullOrWhiteSpace(deviceId)) return "";
+        return deviceId.Length <= 12 ? deviceId : deviceId[^12..];
     }
 
     protected override void Dispose(bool disposing)

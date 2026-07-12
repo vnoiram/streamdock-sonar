@@ -82,7 +82,7 @@
       "Tooltip": "Rotate a SteelSeries Sonar output target to the next active output device.",
       "Controllers": ["Keypad", "Knob"],
       "Icon": "icons/rotate-output",
-      "States": [{ "Title": "Rotate", "Image": "icons/rotate-output" }],
+      "States": [{ "Title": "Output", "Image": "icons/rotate-output" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
@@ -100,7 +100,7 @@
       "Tooltip": "Rotate the SteelSeries Sonar microphone input to the next active input device.",
       "Controllers": ["Keypad", "Knob"],
       "Icon": "icons/rotate-input",
-      "States": [{ "Title": "Rotate Mic", "Image": "icons/rotate-input" }],
+      "States": [{ "Title": "Input", "Image": "icons/rotate-input" }],
       "PropertyInspectorPath": "property-inspector.html"
     },
     {

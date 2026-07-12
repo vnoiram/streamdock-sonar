@@ -192,7 +192,7 @@
   }
 
   function isDeviceAction() {
-    return isOutputDeviceAction() || isInputDeviceAction();
+    return isOutputDeviceAction() || isInputDeviceAction() || isRotateOutputAction() || isRotateInputAction();
   }
 
   function isProfileAction() {
@@ -375,7 +375,7 @@
       event: 'sendToPlugin',
       action: currentAction,
       context: propertyInspectorContext,
-      payload: { command: 'devices', dataFlow: isInputDeviceAction() ? 'capture' : 'render', replyContext: actionContext }
+      payload: { command: 'devices', dataFlow: (isInputDeviceAction() || isRotateInputAction()) ? 'capture' : 'render', replyContext: actionContext }
     }));
     byId('deviceStatus').textContent = 'loading';
     if (deviceRequestTimer) clearTimeout(deviceRequestTimer);
