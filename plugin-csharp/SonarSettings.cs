@@ -51,6 +51,7 @@ public sealed record SonarSettings(
         "media" => "Media",
         "aux" => "Aux",
         "chatCapture" => "Microphone",
+        "all" => "All",
         _ => targetRole
     };
 
@@ -62,6 +63,7 @@ public sealed record SonarSettings(
         "media" => "MED",
         "aux" => "AUX",
         "chatCapture" => "MIC",
+        "all" => "ALL",
         _ => targetRole.Length <= 3 ? targetRole.ToUpperInvariant() : targetRole[..3].ToUpperInvariant()
     };
 

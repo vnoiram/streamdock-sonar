@@ -150,11 +150,11 @@
     if (byId('sonarMode').value === 'streamer') {
       return byId('streamerOutput').value === 'streaming' ? 'all-streaming' : 'all-monitoring';
     }
-    return 'target';
+    return byId('targetRole').value === 'all' ? 'all-classic' : 'target';
   }
 
   function normalizeOutputTargetRole(targetRole) {
-    return ['game', 'chatRender', 'media', 'aux'].indexOf(targetRole) !== -1 ? targetRole : 'game';
+    return ['game', 'chatRender', 'media', 'aux', 'all'].indexOf(targetRole) !== -1 ? targetRole : 'game';
   }
 
   function normalizeStep(value) {
@@ -289,7 +289,9 @@
     byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
     Array.prototype.forEach.call(byId('targetRole').options, function (option) {
-      option.hidden = (isRotateOutput || isOutputDevice) && settings.sonarMode === 'normal' && ['master', 'chatCapture'].indexOf(option.value) !== -1;
+      option.hidden = (isRotateOutput || isOutputDevice) && settings.sonarMode === 'normal'
+        ? ['master', 'chatCapture'].indexOf(option.value) !== -1
+        : option.value === 'all';
       option.disabled = option.hidden;
     });
 

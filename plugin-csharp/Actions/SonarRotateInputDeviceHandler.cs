@@ -27,8 +27,8 @@ public sealed class SonarRotateInputDeviceHandler(
 
     public override async Task OnKeyDownAsync()
     {
-        Log.Info($"RotateInput keyDown context={Context} deviceId={ShortDeviceId(SonarSettings.DeviceId)}");
-        await SetConfiguredDeviceAsync();
+        Log.Info($"RotateInput keyDown context={Context}");
+        await RotateAsync(1);
     }
 
     public override async Task OnDialDownAsync()

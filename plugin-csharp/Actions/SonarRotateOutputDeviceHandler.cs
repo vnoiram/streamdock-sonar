@@ -27,8 +27,8 @@ public sealed class SonarRotateOutputDeviceHandler(
 
     public override async Task OnKeyDownAsync()
     {
-        Log.Info($"RotateOutput keyDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix} deviceId={ShortDeviceId(SonarSettings.DeviceId)}");
-        await SetConfiguredDeviceAsync();
+        Log.Info($"RotateOutput keyDown context={Context} targetRole={SonarSettings.TargetRole} streamMix={SonarSettings.StreamMix}");
+        await RotateAsync(1);
     }
 
     public override async Task OnDialDownAsync()

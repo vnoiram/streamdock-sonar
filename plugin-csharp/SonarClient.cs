@@ -137,6 +137,14 @@ public sealed class SonarClient : IDisposable
         try
         {
             mode = await GetModeAsync(cancellationToken);
+            if (string.Equals(targetRole, "all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (NormalizeMode(mode) != "classic")
+                    return SonarOperationResult.Error(mode, null, null, "All output device switching is only available in Normal mode");
+
+                return await SetAllClassicOutputDevicesAsync(deviceId, cancellationToken);
+            }
+
             var route = BuildDeviceRoute(mode, targetRole, streamMix, deviceId);
             return await PutAsync(mode, route, cancellationToken);
         }

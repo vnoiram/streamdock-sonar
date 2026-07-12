@@ -34,7 +34,7 @@ When Sonar is in stream mode, `Stream mix` selects which GG mix is controlled:
 - `Monitoring`
 - `Streaming`
 
-For mode-aware actions, the Property Inspector exposes GG's mode as `Normal` or `Streamer` instead of the internal `classic` / `stream` names. Volume and mute use `Target` in Normal mode, and `Target` plus `Streamer mix` in Streamer mode. Output-device actions use `Target` in Normal mode, and `All monitoring` / `All stream` in Streamer mode because Sonar's streamer output route is mix-based. Input-device actions show the same mode selector and route status for the microphone redirection.
+For mode-aware actions, the Property Inspector exposes GG's mode as `Normal` or `Streamer` instead of the internal `classic` / `stream` names. Volume and mute use `Target` in Normal mode, and `Target` plus `Streamer mix` in Streamer mode. Output-device actions use `Target` in Normal mode, with `All outputs` available for linked GG output setups, and `All monitoring` / `All stream` in Streamer mode because Sonar's streamer output route is mix-based. Input-device actions show the same mode selector and route status for the microphone redirection.
 
 `Sonar Mixer Overview` can display 1 to 6 selected targets as a generated key image. It clears the Stream Dock text title so the selected targets are shown only by the image renderer. It uses compact labels:
 
@@ -63,9 +63,9 @@ Output device switching follows Sonar's redirection routes:
 
 `Sonar Output Device` loads active non-virtual render devices from `/audioDevices` into the Property Inspector. The raw `deviceId` field remains available as a manual fallback.
 The Property Inspector requests device lists over `sendToPlugin`; those requests use the Property Inspector connection context, while saved settings continue to use the action context.
-`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/1/...` and `All stream` writes `/StreamRedirections/0/...`. Pressing the key or knob applies the configured `deviceId` instead of rotating.
+`Sonar Rotate Output` reads `/ClassicRedirections` or `/StreamRedirections`, finds the currently assigned device for the configured target/mix, then applies the next active render device with the same redirection routes. Normal mode supports target-specific output rotation, and `All outputs` writes Game, Chat, Media, and Aux together. Streamer mode output redirection is mix-based, so `All monitoring` writes `/StreamRedirections/1/...` and `All stream` writes `/StreamRedirections/0/...`. Keypad press rotates; knob press applies the configured `deviceId` instead of rotating.
 `Sonar Input Device` uses the same `/audioDevices` source, filtered to active non-virtual capture devices. It writes `/ClassicRedirections/3/deviceId/{deviceId}` in classic mode and `/StreamRedirections/2/deviceId/{deviceId}` in stream mode.
-`Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes. Pressing the key or knob applies the configured `deviceId` instead of rotating.
+`Sonar Rotate Input` reads the current `mic` redirection and applies the next active capture device with the same input device routes. Keypad press rotates; knob press applies the configured `deviceId` instead of rotating.
 Rotate actions use `/FallbackSettings/lists` by default so excluded devices are skipped. Enabling `Excluded devices` in the Property Inspector rotates across all non-virtual devices from `/audioDevices`.
 Rotate actions support knob rotation. `Rotate ticks` controls how many dial ticks are required before a rotated device switch is applied.
 `Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.

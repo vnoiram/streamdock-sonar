@@ -17,6 +17,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("chatmix disabled is user visible error", ChatMixDisabledIsUserVisibleErrorAsync),
     ("settings support negative step and invert alias", SettingsSupportNegativeStepAndInvertAlias),
     ("classic output device uses classic redirection route", ClassicOutputDeviceUsesRedirectionRouteAsync),
+    ("classic all output device updates classic channels", ClassicAllOutputDeviceUpdatesClassicChannelsAsync),
     ("stream output device uses stream redirection route", StreamOutputDeviceUsesRedirectionRouteAsync),
     ("classic master output device is user visible error", ClassicMasterOutputDeviceIsUserVisibleErrorAsync),
     ("output devices filters active non virtual render devices", OutputDevicesFiltersActiveRenderDevicesAsync),
@@ -238,6 +239,21 @@ static async Task ClassicOutputDeviceUsesRedirectionRouteAsync()
 
     AssertEqual(true, result.Success, "classic output success");
     AssertEqual("/ClassicRedirections/1/deviceId/%7Bgame-device%7D", server.LastPutPath, "classic output path");
+}
+
+static async Task ClassicAllOutputDeviceUpdatesClassicChannelsAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetOutputDeviceAsync("all", "monitoring", "all-device", CancellationToken.None);
+
+    AssertEqual(true, result.Success, "classic all output success");
+    AssertEqual(4, server.PutPaths.Count(path => path.StartsWith("/ClassicRedirections/", StringComparison.Ordinal)), "classic all put count");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/1/deviceId/all-device"), "game route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/2/deviceId/all-device"), "chat route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/7/deviceId/all-device"), "media route");
+    AssertEqual(true, server.PutPaths.Contains("/ClassicRedirections/8/deviceId/all-device"), "aux route");
 }
 
 static async Task StreamOutputDeviceUsesRedirectionRouteAsync()
