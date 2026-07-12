@@ -6,6 +6,12 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 Current version: `0.3.10`.
 
+## Support Scope
+
+Version `0.3.10` supports SteelSeries GG Sonar Normal mode only. Normal mode maps to Sonar's internal `classic` mode and means GG is not in Streamer mode.
+
+Streamer mode routes and UI fields may still appear in the plugin for diagnostics and ongoing development, but they are not part of the supported behavior for this release.
+
 ## Actions
 
 - `Sonar Mixer Volume`: adjusts one Sonar mixer target. Key press changes volume by `Step`; negative values lower volume. Knob rotation adjusts up/down, and knob press toggles mute.
@@ -51,10 +57,10 @@ Numeric values are volume percentages. `M` means muted, and `ERR` means that tar
 
 The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.0.1:6327/subApps`, then reads `subApps.sonar.metadata.webServerAddress`. Only loopback Sonar URLs are accepted.
 
-The plugin reads `/mode` before writes:
+The supported runtime path is Normal mode only:
 
-- `classic`: uses `/VolumeSettings/classic/...` routes and never calls streamer routes.
-- `stream`: uses `/VolumeSettings/streamer/{monitoring|streaming}/...` routes based on `Stream mix`.
+- `classic`: supported. The plugin uses `/VolumeSettings/classic/...` and `/ClassicRedirections/...` routes.
+- `stream`: not supported in `0.3.10`. Streamer routes may be probed for diagnostics, but Streamer mode behavior is not guaranteed.
 
 Output device switching follows Sonar's redirection routes:
 
