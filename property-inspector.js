@@ -327,7 +327,7 @@
 
   function updateFromDeviceSelect() {
     var selected = byId('deviceSelect').value;
-    if (selected) byId('deviceId').value = selected;
+    byId('deviceId').value = selected;
     update();
   }
 

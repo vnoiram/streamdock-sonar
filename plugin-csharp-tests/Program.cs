@@ -35,8 +35,10 @@ var tests = new (string Name, Func<Task> Run)[]
     ("rotate output can include excluded devices", RotateOutputCanIncludeExcludedDevicesAsync),
     ("rotate output falls back when target fallback list is empty", RotateOutputFallsBackWhenTargetFallbackListIsEmptyAsync),
     ("rotate output matches encoded current device id", RotateOutputMatchesEncodedCurrentDeviceIdAsync),
+    ("rotate output accepts alternate redirection id fields", RotateOutputAcceptsAlternateRedirectionIdFieldsAsync),
     ("rotate output supports previous direction", RotateOutputSupportsPreviousDirectionAsync),
     ("classic rotate input uses next capture device", ClassicRotateInputUsesNextCaptureDeviceAsync),
+    ("classic rotate input accepts alternate redirection names", ClassicRotateInputAcceptsAlternateRedirectionNamesAsync),
     ("stream rotate input uses next capture device", StreamRotateInputUsesNextCaptureDeviceAsync),
     ("legacy streamer target maps stream mix", LegacyStreamerTargetMapsStreamMix)
 };
@@ -452,6 +454,17 @@ static async Task RotateOutputMatchesEncodedCurrentDeviceIdAsync()
     AssertEqual("/ClassicRedirections/1/deviceId/render-device-2", server.LastPutPath, "rotate encoded current path");
 }
 
+static async Task RotateOutputAcceptsAlternateRedirectionIdFieldsAsync()
+{
+    using var server = FakeSonarServer.Start("classic", alternateRedirections: true);
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateOutputDeviceAsync("game", "monitoring");
+
+    AssertEqual(true, result.Success, "rotate alternate id success");
+    AssertEqual("/ClassicRedirections/1/deviceId/render-device-2", server.LastPutPath, "rotate alternate id path");
+}
+
 static async Task RotateOutputSupportsPreviousDirectionAsync()
 {
     using var server = FakeSonarServer.Start("classic");
@@ -472,6 +485,17 @@ static async Task ClassicRotateInputUsesNextCaptureDeviceAsync()
 
     AssertEqual(true, result.Success, "classic rotate input success");
     AssertEqual("/ClassicRedirections/3/deviceId/capture-device-2", server.LastPutPath, "classic rotate input path");
+}
+
+static async Task ClassicRotateInputAcceptsAlternateRedirectionNamesAsync()
+{
+    using var server = FakeSonarServer.Start("classic", alternateRedirections: true);
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.RotateInputDeviceAsync();
+
+    AssertEqual(true, result.Success, "classic rotate input alternate names success");
+    AssertEqual("/ClassicRedirections/3/deviceId/capture-device-2", server.LastPutPath, "classic rotate input alternate names path");
 }
 
 static async Task StreamRotateInputUsesNextCaptureDeviceAsync()
@@ -520,16 +544,18 @@ sealed class FakeSonarServer : IDisposable
     private readonly bool _failPut;
     private readonly int _chatMixState;
     private readonly bool _encodedGameDevice;
+    private readonly bool _alternateRedirections;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
 
-    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState, bool encodedGameDevice)
+    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState, bool encodedGameDevice, bool alternateRedirections)
     {
         _listener = listener;
         _mode = mode;
         _failPut = failPut;
         _chatMixState = chatMixState;
         _encodedGameDevice = encodedGameDevice;
+        _alternateRedirections = alternateRedirections;
         BaseUrl = $"http://127.0.0.1:{port}";
         _loop = Task.Run(ServeAsync);
     }
@@ -540,13 +566,13 @@ sealed class FakeSonarServer : IDisposable
     public string? LastPutPath { get; private set; }
     public string? LastPutQuery { get; private set; }
 
-    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1, bool encodedGameDevice = false)
+    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1, bool encodedGameDevice = false, bool alternateRedirections = false)
     {
         var port = GetFreeTcpPort();
         var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
-        return new FakeSonarServer(listener, port, mode, failPut, chatMixState, encodedGameDevice);
+        return new FakeSonarServer(listener, port, mode, failPut, chatMixState, encodedGameDevice, alternateRedirections);
     }
 
     public void Dispose()
@@ -646,6 +672,20 @@ sealed class FakeSonarServer : IDisposable
         if (path == "/ClassicRedirections")
         {
             var gameDeviceId = _encodedGameDevice ? "render%2Ddevice" : "render-device";
+            if (_alternateRedirections)
+            {
+                await WriteAsync(context, """
+                [
+                  { "id": "aux", "deviceId": "render-device", "isRunning": true },
+                  { "id": "chat", "deviceId": "render-device", "isRunning": true },
+                  { "id": "game", "deviceId": "__GAME_DEVICE_ID__", "isRunning": true },
+                  { "id": "media", "deviceId": "render-device", "isRunning": true },
+                  { "id": "mic", "deviceId": "capture-device", "isRunning": true }
+                ]
+                """.Replace("__GAME_DEVICE_ID__", gameDeviceId));
+                return;
+            }
+
             await WriteAsync(context, """
             [
               { "id": 1, "deviceId": "__GAME_DEVICE_ID__", "isRunning": true },
@@ -660,6 +700,18 @@ sealed class FakeSonarServer : IDisposable
 
         if (path == "/StreamRedirections")
         {
+            if (_alternateRedirections)
+            {
+                await WriteAsync(context, """
+                [
+                  { "streamRedirectionType": "monitoring", "audioDeviceId": "render-device", "isRunning": true },
+                  { "streamRedirectionType": "streaming", "audioDeviceId": "render-device", "isRunning": true },
+                  { "streamRedirectionType": "mic", "audioDeviceId": "capture-device", "isRunning": true }
+                ]
+                """);
+                return;
+            }
+
             await WriteAsync(context, """
             [
               { "streamRedirectionId": 1, "deviceId": "render-device", "isRunning": true },
