@@ -4,11 +4,11 @@ Mirabox Stream Dock plugin for controlling SteelSeries GG Sonar mixer targets di
 
 ## Version
 
-Current version: `0.3.10`.
+Current version: `0.4.0`.
 
 ## Support Scope
 
-Version `0.3.10` supports SteelSeries GG Sonar Normal mode only. Normal mode maps to Sonar's internal `classic` mode and means GG is not in Streamer mode.
+Version `0.4.0` supports SteelSeries GG Sonar Normal mode only. Normal mode maps to Sonar's internal `classic` mode and means GG is not in Streamer mode.
 
 Streamer mode routes and UI fields may still appear in the plugin for diagnostics and ongoing development, but they are not part of the supported behavior for this release.
 
@@ -60,7 +60,7 @@ The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.
 The supported runtime path is Normal mode only:
 
 - `classic`: supported. The plugin uses `/VolumeSettings/classic/...` and `/ClassicRedirections/...` routes.
-- `stream`: not supported in `0.3.10`. Streamer routes may be probed for diagnostics, but Streamer mode behavior is not guaranteed.
+- `stream`: not supported in `0.4.0`. Streamer routes may be probed for diagnostics, but Streamer mode behavior is not guaranteed.
 
 Output device switching follows Sonar's redirection routes:
 
@@ -145,7 +145,7 @@ npm run check
 Release output is written to:
 
 ```text
-dist/release/streamdock-sonar-0.3.10.zip
+dist/release/streamdock-sonar-0.4.0.zip
 ```
 
 The packaged plugin directory is:
