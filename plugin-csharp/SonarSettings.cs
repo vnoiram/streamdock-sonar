@@ -8,6 +8,10 @@ public sealed record SonarSettings(
     IReadOnlyList<string> OverviewTargets,
     string ChatMixMode,
     int ChatMixStep,
+    int VirtualChatMixStep,
+    int VirtualChatMixRotateTicks,
+    string VirtualChatMixPrimaryRole,
+    string VirtualChatMixSecondaryRole,
     string DeviceId,
     string TargetProfileId,
     string RotationMode,
@@ -29,6 +33,12 @@ public sealed record SonarSettings(
         var overviewTargets = NormalizeOverviewTargets(ReadStringList(settings, "overviewTargets"));
         var chatMixMode = NormalizeChatMixMode(ReadString(settings, "chatMixMode"));
         var chatMixStep = Math.Clamp(ReadInt(settings, "chatMixStep") ?? 10, 1, 100);
+        var virtualChatMixStep = NormalizeEvenPercent(ReadInt(settings, "virtualChatMixStep") ?? 2);
+        var virtualChatMixRotateTicks = Math.Clamp(ReadInt(settings, "virtualChatMixRotateTicks") ?? 3, 1, 20);
+        var virtualChatMixPrimaryRole = NormalizeVirtualChatMixRole(ReadString(settings, "virtualChatMixPrimaryRole")) ?? "game";
+        var virtualChatMixSecondaryRole = NormalizeVirtualChatMixRole(ReadString(settings, "virtualChatMixSecondaryRole")) ?? "chatRender";
+        if (string.Equals(virtualChatMixPrimaryRole, virtualChatMixSecondaryRole, StringComparison.OrdinalIgnoreCase))
+            virtualChatMixSecondaryRole = virtualChatMixPrimaryRole == "chatRender" ? "game" : "chatRender";
         var deviceId = ReadString(settings, "deviceId") ?? "";
         var targetProfileId = ReadString(settings, "targetProfileId") ?? "";
         var rotationMode = NormalizeRotationMode(ReadString(settings, "rotationMode"));
@@ -38,7 +48,7 @@ public sealed record SonarSettings(
         var titleLabel = ReadString(settings, "titleLabel");
         var allowExcludedDevices = ReadBool(settings, "allowExcludedDevices") ?? false;
         var invertKnob = ReadBool(settings, "invert") ?? ReadBool(settings, "invertKnob") ?? false;
-        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, deviceId, targetProfileId, rotationMode, step, rotateTicks, titleLabel, allowExcludedDevices, invertKnob);
+        return new SonarSettings(targetRole, streamMix, overviewTargets, chatMixMode, chatMixStep, virtualChatMixStep, virtualChatMixRotateTicks, virtualChatMixPrimaryRole, virtualChatMixSecondaryRole, deviceId, targetProfileId, rotationMode, step, rotateTicks, titleLabel, allowExcludedDevices, invertKnob);
     }
 
     public string DisplayName => DisplayNameFor(TargetRole);
@@ -120,6 +130,18 @@ public sealed record SonarSettings(
             "reset" => "reset",
             _ => "chat"
         };
+    }
+
+    private static string? NormalizeVirtualChatMixRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return null;
+        return AllTargetRoles.FirstOrDefault(knownRole => string.Equals(knownRole, role, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int NormalizeEvenPercent(int value)
+    {
+        var clamped = Math.Clamp(value, 2, 100);
+        return clamped % 2 == 0 ? clamped : clamped + 1;
     }
 
     private static string NormalizeRotationMode(string? mode)

@@ -132,6 +132,96 @@ public sealed class SonarClient : IDisposable
         return await PutAsync("", $"/ChatMix?balance={normalized}", cancellationToken);
     }
 
+    public async Task<SonarVirtualChatMixResult> SetVirtualChatMixAsync(
+        string primaryRole,
+        string secondaryRole,
+        int relativeStep,
+        int direction,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedPrimary = NormalizeTargetRole(primaryRole);
+        var normalizedSecondary = NormalizeTargetRole(secondaryRole);
+        if (string.Equals(normalizedPrimary, normalizedSecondary, StringComparison.OrdinalIgnoreCase))
+            normalizedSecondary = normalizedPrimary == "chatRender" ? "game" : "chatRender";
+
+        var mode = await GetModeAsync(cancellationToken);
+        if (NormalizeMode(mode) != "classic")
+        {
+            return SonarVirtualChatMixResult.Error(
+                normalizedPrimary,
+                normalizedSecondary,
+                0,
+                0,
+                "Virtual ChatMix is only available in Normal mode");
+        }
+
+        using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
+        var primaryState = ExtractState(settings.RootElement, mode, normalizedPrimary, "monitoring");
+        var secondaryState = ExtractState(settings.RootElement, mode, normalizedSecondary, "monitoring");
+        var (nextPrimary, nextSecondary) = CalculateVirtualChatMixVolumes(primaryState.Volume, secondaryState.Volume, relativeStep, direction);
+
+        var primaryResult = await PutAsync(mode, BuildPutRoute(mode, normalizedPrimary, "monitoring", "volume", (nextPrimary / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), cancellationToken);
+        if (!primaryResult.Success)
+        {
+            return SonarVirtualChatMixResult.Error(
+                normalizedPrimary,
+                normalizedSecondary,
+                nextPrimary,
+                nextSecondary,
+                primaryResult.ErrorSummary ?? "Virtual ChatMix primary update failed");
+        }
+
+        var secondaryResult = await PutAsync(mode, BuildPutRoute(mode, normalizedSecondary, "monitoring", "volume", (nextSecondary / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), cancellationToken);
+        if (!secondaryResult.Success)
+        {
+            return SonarVirtualChatMixResult.Error(
+                normalizedPrimary,
+                normalizedSecondary,
+                nextPrimary,
+                nextSecondary,
+                secondaryResult.ErrorSummary ?? "Virtual ChatMix secondary update failed");
+        }
+
+        return SonarVirtualChatMixResult.Ok(normalizedPrimary, normalizedSecondary, nextPrimary, nextSecondary);
+    }
+
+    public async Task<SonarVirtualChatMixResult> ResetVirtualChatMixAsync(
+        string primaryRole,
+        string secondaryRole,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedPrimary = NormalizeTargetRole(primaryRole);
+        var normalizedSecondary = NormalizeTargetRole(secondaryRole);
+        if (string.Equals(normalizedPrimary, normalizedSecondary, StringComparison.OrdinalIgnoreCase))
+            normalizedSecondary = normalizedPrimary == "chatRender" ? "game" : "chatRender";
+
+        var mode = await GetModeAsync(cancellationToken);
+        if (NormalizeMode(mode) != "classic")
+        {
+            return SonarVirtualChatMixResult.Error(
+                normalizedPrimary,
+                normalizedSecondary,
+                0,
+                0,
+                "Virtual ChatMix is only available in Normal mode");
+        }
+
+        using var settings = await GetVolumeSettingsAsync(mode, cancellationToken);
+        var primaryState = ExtractState(settings.RootElement, mode, normalizedPrimary, "monitoring");
+        var secondaryState = ExtractState(settings.RootElement, mode, normalizedSecondary, "monitoring");
+        var next = Math.Clamp((primaryState.Volume + secondaryState.Volume) / 2.0, 0, 100);
+
+        var primaryResult = await PutAsync(mode, BuildPutRoute(mode, normalizedPrimary, "monitoring", "volume", (next / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), cancellationToken);
+        if (!primaryResult.Success)
+            return SonarVirtualChatMixResult.Error(normalizedPrimary, normalizedSecondary, next, next, primaryResult.ErrorSummary ?? "Virtual ChatMix primary reset failed");
+
+        var secondaryResult = await PutAsync(mode, BuildPutRoute(mode, normalizedSecondary, "monitoring", "volume", (next / 100.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), cancellationToken);
+        if (!secondaryResult.Success)
+            return SonarVirtualChatMixResult.Error(normalizedPrimary, normalizedSecondary, next, next, secondaryResult.ErrorSummary ?? "Virtual ChatMix secondary reset failed");
+
+        return SonarVirtualChatMixResult.Ok(normalizedPrimary, normalizedSecondary, next, next);
+    }
+
     public async Task<SonarOperationResult> SetOutputDeviceAsync(string targetRole, string streamMix, string deviceId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(deviceId))
@@ -891,6 +981,39 @@ public sealed class SonarClient : IDisposable
                string.Equals(mode, "stream", StringComparison.OrdinalIgnoreCase)
             ? "stream"
             : "classic";
+    }
+
+    private static string NormalizeTargetRole(string? targetRole)
+    {
+        return targetRole switch
+        {
+            "master" => "master",
+            "game" => "game",
+            "chatRender" => "chatRender",
+            "media" => "media",
+            "aux" => "aux",
+            "chatCapture" => "chatCapture",
+            _ => "game"
+        };
+    }
+
+    private static (double PrimaryVolume, double SecondaryVolume) CalculateVirtualChatMixVolumes(double primaryVolume, double secondaryVolume, int relativeStep, int direction)
+    {
+        var step = Math.Clamp(relativeStep, 2, 100);
+        if (step % 2 != 0) step++;
+        var signedDirection = direction >= 0 ? 1 : -1;
+        var half = step / 2.0;
+
+        if (signedDirection > 0)
+        {
+            var primaryIncrease = Math.Min(half, 100 - primaryVolume);
+            var secondaryDecrease = Math.Min(step - primaryIncrease, secondaryVolume);
+            return (Math.Clamp(primaryVolume + primaryIncrease, 0, 100), Math.Clamp(secondaryVolume - secondaryDecrease, 0, 100));
+        }
+
+        var secondaryIncrease = Math.Min(half, 100 - secondaryVolume);
+        var primaryDecrease = Math.Min(step - secondaryIncrease, primaryVolume);
+        return (Math.Clamp(primaryVolume - primaryDecrease, 0, 100), Math.Clamp(secondaryVolume + secondaryIncrease, 0, 100));
     }
 
     private static string NormalizeStreamMix(string? streamMix)

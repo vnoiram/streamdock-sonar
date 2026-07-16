@@ -48,6 +48,36 @@
       <div class="sdpi-item-label">Mix step</div>
       <input id="chatMixStep" class="sdpi-item-value" type="number" min="1" max="100" value="10">
     </div>
+    <div class="sdpi-item virtual-chatmix-settings">
+      <div class="sdpi-item-label">Primary</div>
+      <select id="virtualChatMixPrimaryRole" class="sdpi-item-value">
+        <option value="master">Master</option>
+        <option value="game">Game</option>
+        <option value="chatRender">Chat</option>
+        <option value="media">Media</option>
+        <option value="aux">Aux</option>
+        <option value="chatCapture">Microphone</option>
+      </select>
+    </div>
+    <div class="sdpi-item virtual-chatmix-settings">
+      <div class="sdpi-item-label">Secondary</div>
+      <select id="virtualChatMixSecondaryRole" class="sdpi-item-value">
+        <option value="master">Master</option>
+        <option value="game">Game</option>
+        <option value="chatRender">Chat</option>
+        <option value="media">Media</option>
+        <option value="aux">Aux</option>
+        <option value="chatCapture">Microphone</option>
+      </select>
+    </div>
+    <div class="sdpi-item virtual-chatmix-settings">
+      <div class="sdpi-item-label">Diff step</div>
+      <input id="virtualChatMixStep" class="sdpi-item-value" type="number" min="2" max="100" step="2" value="2">
+    </div>
+    <div class="sdpi-item virtual-chatmix-settings">
+      <div class="sdpi-item-label">Rotate ticks</div>
+      <input id="virtualChatMixRotateTicks" class="sdpi-item-value" type="number" min="1" max="20" value="3">
+    </div>
     <div class="sdpi-item streammix-settings">
       <div class="sdpi-item-label">Streamer mix</div>
       <select id="streamMix" class="sdpi-item-value">

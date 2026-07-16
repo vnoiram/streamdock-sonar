@@ -68,6 +68,15 @@
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
+      "UUID": "local.streamdock.sonar.virtual-chatmix-dial",
+      "Name": "Sonar Virtual ChatMix Dial",
+      "Tooltip": "Simulate ChatMix by balancing two SteelSeries Sonar mixer channel volumes.",
+      "Controllers": ["Knob"],
+      "Icon": "icons/chatmix",
+      "States": [{ "Title": "Virtual", "Image": "icons/chatmix" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
       "UUID": "local.streamdock.sonar.output-device",
       "Name": "Sonar Output Device",
       "Tooltip": "Switch a SteelSeries Sonar output device by device id.",

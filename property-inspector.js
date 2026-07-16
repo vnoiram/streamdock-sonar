@@ -16,6 +16,10 @@
     overviewTargets: ['master', 'game', 'chatRender', 'media', 'aux', 'chatCapture'],
     chatMixMode: 'chat',
     chatMixStep: 10,
+    virtualChatMixStep: 2,
+    virtualChatMixRotateTicks: 3,
+    virtualChatMixPrimaryRole: 'game',
+    virtualChatMixSecondaryRole: 'chatRender',
     deviceId: '',
     targetProfileId: '',
     rotationMode: 'target',
@@ -76,6 +80,13 @@
     normalized.overviewTargets = normalizeOverviewTargets(normalized.overviewTargets);
     normalized.chatMixMode = normalizeChatMixMode(normalized.chatMixMode);
     normalized.chatMixStep = Math.max(1, Math.min(100, Number(normalized.chatMixStep) || 10));
+    normalized.virtualChatMixStep = normalizeEvenPercent(normalized.virtualChatMixStep || 2);
+    normalized.virtualChatMixRotateTicks = Math.max(1, Math.min(20, Number(normalized.virtualChatMixRotateTicks) || 3));
+    normalized.virtualChatMixPrimaryRole = normalizeVirtualChatMixRole(normalized.virtualChatMixPrimaryRole) || 'game';
+    normalized.virtualChatMixSecondaryRole = normalizeVirtualChatMixRole(normalized.virtualChatMixSecondaryRole) || 'chatRender';
+    if (normalized.virtualChatMixPrimaryRole === normalized.virtualChatMixSecondaryRole) {
+      normalized.virtualChatMixSecondaryRole = normalized.virtualChatMixPrimaryRole === 'chatRender' ? 'game' : 'chatRender';
+    }
     normalized.deviceId = normalized.deviceId || '';
     normalized.targetProfileId = normalized.targetProfileId || '';
     normalized.rotationMode = normalizeRotationMode(normalized.rotationMode);
@@ -133,6 +144,17 @@
     return mode === 'game' || mode === 'reset' ? mode : 'chat';
   }
 
+  function normalizeVirtualChatMixRole(role) {
+    var all = ['master', 'game', 'chatRender', 'media', 'aux', 'chatCapture'];
+    return all.indexOf(role) !== -1 ? role : '';
+  }
+
+  function normalizeEvenPercent(value) {
+    var step = Math.ceil(Number(value) || 2);
+    step = Math.max(2, Math.min(100, step));
+    return step % 2 === 0 ? step : step + 1;
+  }
+
   function normalizeRotationMode(mode) {
     return mode === 'all-auto-detect' || mode === 'all-classic' || mode === 'all-monitoring' || mode === 'all-streaming' ? mode : 'target';
   }
@@ -183,6 +205,10 @@
     return currentAction === 'local.streamdock.sonar.chatmix-dial';
   }
 
+  function isVirtualChatMixDialAction() {
+    return currentAction === 'local.streamdock.sonar.virtual-chatmix-dial';
+  }
+
   function isOutputDeviceAction() {
     return currentAction === 'local.streamdock.sonar.output-device';
   }
@@ -225,6 +251,10 @@
     byId('step').value = settings.step;
     byId('chatMixMode').value = settings.chatMixMode;
     byId('chatMixStep').value = settings.chatMixStep;
+    byId('virtualChatMixPrimaryRole').value = settings.virtualChatMixPrimaryRole;
+    byId('virtualChatMixSecondaryRole').value = settings.virtualChatMixSecondaryRole;
+    byId('virtualChatMixStep').value = settings.virtualChatMixStep;
+    byId('virtualChatMixRotateTicks').value = settings.virtualChatMixRotateTicks;
     byId('deviceId').value = settings.deviceId;
     byId('rotationMode').value = settings.rotationMode;
     byId('streamerOutput').value = settings.streamerOutput;
@@ -241,6 +271,7 @@
     var isOverview = isOverviewAction();
     var isChatMix = isChatMixAction();
     var isChatMixDial = isChatMixDialAction();
+    var isVirtualChatMixDial = isVirtualChatMixDialAction();
     var isOutputDevice = isOutputDeviceAction();
     var isInputDevice = isInputDeviceAction();
     var isProfile = isProfileAction();
@@ -252,7 +283,7 @@
       element.classList.toggle('is-hidden', !isModeAwareAction());
     });
     Array.prototype.forEach.call(document.querySelectorAll('.single-target'), function (element) {
-      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isInputDevice || isRotateInput || isStreamerOutputRoute || isDiagnostics);
+      element.classList.toggle('is-hidden', isOverview || isChatMix || isChatMixDial || isVirtualChatMixDial || isInputDevice || isRotateInput || isStreamerOutputRoute || isDiagnostics);
     });
     Array.prototype.forEach.call(document.querySelectorAll('.overview-targets'), function (element) {
       element.classList.toggle('is-hidden', !isOverview);
@@ -260,8 +291,11 @@
     Array.prototype.forEach.call(document.querySelectorAll('.chatmix-settings'), function (element) {
       element.classList.toggle('is-hidden', !isChatMix && !isChatMixDial);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('.virtual-chatmix-settings'), function (element) {
+      element.classList.toggle('is-hidden', !isVirtualChatMixDial);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.streammix-settings'), function (element) {
-      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isInputDevice || isRotateInput || isOutputDevice || isRotateOutput || isDiagnostics || !isModeAwareAction() || settings.sonarMode !== 'streamer');
+      element.classList.toggle('is-hidden', isChatMix || isChatMixDial || isVirtualChatMixDial || isInputDevice || isRotateInput || isOutputDevice || isRotateOutput || isDiagnostics || !isModeAwareAction() || settings.sonarMode !== 'streamer');
     });
     Array.prototype.forEach.call(document.querySelectorAll('.rotation-settings'), function (element) {
       element.classList.toggle('is-hidden', true);
@@ -286,8 +320,8 @@
     });
     byId('chatMixMode').closest('.sdpi-item').classList.toggle('is-hidden', !isChatMix);
     byId('invertKnob').closest('.sdpi-item').classList.toggle('is-hidden', isChatMix || isOverview || isDeviceAction() || isProfile || isRotateOutput || isRotateInput || isDiagnostics);
-    byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
-    byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial);
+    byId('titleLabel').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial || isVirtualChatMixDial);
+    byId('step').closest('.sdpi-item').classList.toggle('is-hidden', isChatMixDial || isVirtualChatMixDial);
     Array.prototype.forEach.call(byId('targetRole').options, function (option) {
       option.hidden = (isRotateOutput || isOutputDevice) && settings.sonarMode === 'normal'
         ? ['master', 'chatCapture'].indexOf(option.value) !== -1
@@ -312,6 +346,15 @@
     settings.overviewTargets = selectedOverviewTargets();
     settings.chatMixMode = byId('chatMixMode').value;
     settings.chatMixStep = Math.max(1, Math.min(100, Number(byId('chatMixStep').value) || 10));
+    settings.virtualChatMixPrimaryRole = normalizeVirtualChatMixRole(byId('virtualChatMixPrimaryRole').value) || 'game';
+    settings.virtualChatMixSecondaryRole = normalizeVirtualChatMixRole(byId('virtualChatMixSecondaryRole').value) || 'chatRender';
+    if (settings.virtualChatMixPrimaryRole === settings.virtualChatMixSecondaryRole) {
+      settings.virtualChatMixSecondaryRole = settings.virtualChatMixPrimaryRole === 'chatRender' ? 'game' : 'chatRender';
+      byId('virtualChatMixSecondaryRole').value = settings.virtualChatMixSecondaryRole;
+    }
+    settings.virtualChatMixStep = normalizeEvenPercent(byId('virtualChatMixStep').value);
+    byId('virtualChatMixStep').value = settings.virtualChatMixStep;
+    settings.virtualChatMixRotateTicks = Math.max(1, Math.min(20, Number(byId('virtualChatMixRotateTicks').value) || 3));
     settings.deviceId = byId('deviceId').value.trim();
     settings.targetProfileId = byId('targetProfileId').value;
     settings.streamerOutput = normalizeStreamMix(byId('streamerOutput').value);
@@ -499,7 +542,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    ['sonarMode', 'targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'deviceId', 'targetProfileId', 'rotationMode', 'streamerOutput', 'rotateTicks', 'allowExcludedDevices'].forEach(function (id) {
+    ['sonarMode', 'targetRole', 'streamMix', 'step', 'titleLabel', 'invertKnob', 'chatMixMode', 'chatMixStep', 'virtualChatMixPrimaryRole', 'virtualChatMixSecondaryRole', 'virtualChatMixStep', 'virtualChatMixRotateTicks', 'deviceId', 'targetProfileId', 'rotationMode', 'streamerOutput', 'rotateTicks', 'allowExcludedDevices'].forEach(function (id) {
       byId(id).addEventListener('change', update);
       byId(id).addEventListener('input', update);
     });

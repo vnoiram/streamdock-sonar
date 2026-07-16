@@ -16,6 +16,12 @@ var tests = new (string Name, Func<Task> Run)[]
     ("chatmix get and set uses ChatMix route", ChatMixGetAndSetUsesRouteAsync),
     ("stale sonar endpoint rediscovered and original request retried", StaleSonarEndpointRediscoveredAndOriginalRequestRetriedAsync),
     ("chatmix disabled is user visible error", ChatMixDisabledIsUserVisibleErrorAsync),
+    ("virtual chatmix settings normalize defaults and even steps", VirtualChatMixSettingsNormalizeDefaultsAndEvenSteps),
+    ("virtual chatmix adjusts selected channels", VirtualChatMixAdjustsSelectedChannelsAsync),
+    ("virtual chatmix preserves relative step at volume boundary", VirtualChatMixPreservesRelativeStepAtVolumeBoundaryAsync),
+    ("virtual chatmix reset centers selected channels", VirtualChatMixResetCentersSelectedChannelsAsync),
+    ("virtual chatmix duplicate target falls back", VirtualChatMixDuplicateTargetFallsBackAsync),
+    ("virtual chatmix stream mode is user visible error", VirtualChatMixStreamModeIsUserVisibleErrorAsync),
     ("settings support negative step and invert alias", SettingsSupportNegativeStepAndInvertAlias),
     ("classic output device uses classic redirection route", ClassicOutputDeviceUsesRedirectionRouteAsync),
     ("classic all output device updates classic channels", ClassicAllOutputDeviceUpdatesClassicChannelsAsync),
@@ -173,7 +179,7 @@ static async Task OverviewMissingTargetRendersErrorCellAsync()
     using var server = FakeSonarServer.Start("stream");
     using var client = new SonarClient(server.BaseUrl);
 
-    var states = await client.GetOverviewStatesAsync(new[] { "game", "media" }, "streaming");
+    var states = await client.GetOverviewStatesAsync(new[] { "game", "missing" }, "streaming");
 
     AssertEqual("70", states[0].ValueText, "ok cell value");
     AssertEqual("ERR", states[1].ValueText, "error cell value");
@@ -208,6 +214,116 @@ static async Task ChatMixDisabledIsUserVisibleErrorAsync()
     }
 
     throw new InvalidOperationException("Expected disabled ChatMix error");
+}
+
+static Task VirtualChatMixSettingsNormalizeDefaultsAndEvenSteps()
+{
+    var defaults = SonarSettings.FromDictionary(null);
+    AssertEqual(2, defaults.VirtualChatMixStep, "default virtual step");
+    AssertEqual(3, defaults.VirtualChatMixRotateTicks, "default virtual rotate ticks");
+    AssertEqual("game", defaults.VirtualChatMixPrimaryRole, "default primary");
+    AssertEqual("chatRender", defaults.VirtualChatMixSecondaryRole, "default secondary");
+
+    var odd = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["virtualChatMixStep"] = 9,
+        ["virtualChatMixRotateTicks"] = 30,
+        ["virtualChatMixPrimaryRole"] = "media",
+        ["virtualChatMixSecondaryRole"] = "media"
+    });
+    AssertEqual(10, odd.VirtualChatMixStep, "odd virtual step rounds up");
+    AssertEqual(20, odd.VirtualChatMixRotateTicks, "virtual rotate ticks clamps high");
+    AssertEqual("media", odd.VirtualChatMixPrimaryRole, "custom primary");
+    AssertEqual("chatRender", odd.VirtualChatMixSecondaryRole, "duplicate secondary fallback");
+
+    var low = SonarSettings.FromDictionary(new Dictionary<string, object>
+    {
+        ["virtualChatMixStep"] = 1,
+        ["virtualChatMixRotateTicks"] = 0
+    });
+    AssertEqual(2, low.VirtualChatMixStep, "virtual step clamps low");
+    AssertEqual(1, low.VirtualChatMixRotateTicks, "virtual rotate ticks clamps low");
+    return Task.CompletedTask;
+}
+
+static async Task VirtualChatMixAdjustsSelectedChannelsAsync()
+{
+    using var server = FakeSonarServer.Start("classic", classicVolumes: new Dictionary<string, double>
+    {
+        ["game"] = 50,
+        ["media"] = 50
+    });
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetVirtualChatMixAsync("game", "media", 10, 1);
+
+    AssertEqual(true, result.Success, "virtual chatmix success");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/game/Volume/0.55"), "primary route");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/media/Volume/0.45"), "secondary route");
+    AssertEqual(55.0, result.PrimaryVolume, "primary volume");
+    AssertEqual(45.0, result.SecondaryVolume, "secondary volume");
+}
+
+static async Task VirtualChatMixPreservesRelativeStepAtVolumeBoundaryAsync()
+{
+    using var server = FakeSonarServer.Start("classic", classicVolumes: new Dictionary<string, double>
+    {
+        ["game"] = 100,
+        ["chatRender"] = 50
+    });
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetVirtualChatMixAsync("game", "chatRender", 10, 1);
+
+    AssertEqual(true, result.Success, "virtual chatmix boundary success");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/game/Volume/1.00"), "bounded primary route");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/chatRender/Volume/0.40"), "compensated secondary route");
+    AssertEqual(100.0, result.PrimaryVolume, "bounded primary volume");
+    AssertEqual(40.0, result.SecondaryVolume, "compensated secondary volume");
+}
+
+static async Task VirtualChatMixResetCentersSelectedChannelsAsync()
+{
+    using var server = FakeSonarServer.Start("classic", classicVolumes: new Dictionary<string, double>
+    {
+        ["game"] = 80,
+        ["chatRender"] = 40
+    });
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.ResetVirtualChatMixAsync("game", "chatRender");
+
+    AssertEqual(true, result.Success, "virtual chatmix reset success");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/game/Volume/0.60"), "reset primary route");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/chatRender/Volume/0.60"), "reset secondary route");
+    AssertEqual(60.0, result.PrimaryVolume, "reset primary volume");
+    AssertEqual(60.0, result.SecondaryVolume, "reset secondary volume");
+}
+
+static async Task VirtualChatMixDuplicateTargetFallsBackAsync()
+{
+    using var server = FakeSonarServer.Start("classic");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetVirtualChatMixAsync("chatRender", "chatRender", 10, 1);
+
+    AssertEqual(true, result.Success, "virtual chatmix duplicate success");
+    AssertEqual("chatRender", result.PrimaryRole, "duplicate primary");
+    AssertEqual("game", result.SecondaryRole, "duplicate secondary fallback");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/chatRender/Volume/0.55"), "duplicate primary route");
+    AssertEqual(true, server.PutPaths.Contains("/VolumeSettings/classic/game/Volume/0.45"), "duplicate fallback route");
+}
+
+static async Task VirtualChatMixStreamModeIsUserVisibleErrorAsync()
+{
+    using var server = FakeSonarServer.Start("stream");
+    using var client = new SonarClient(server.BaseUrl);
+
+    var result = await client.SetVirtualChatMixAsync("game", "chatRender", 10, 1);
+
+    AssertEqual(false, result.Success, "virtual chatmix stream success");
+    AssertEqual(true, result.ErrorSummary?.Contains("Normal mode", StringComparison.OrdinalIgnoreCase) == true, "stream error");
+    AssertEqual(0, server.PutPaths.Count, "stream virtual chatmix should not put");
 }
 
 static async Task StaleSonarEndpointRediscoveredAndOriginalRequestRetriedAsync()
@@ -580,10 +696,11 @@ sealed class FakeSonarServer : IDisposable
     private readonly int _chatMixState;
     private readonly bool _encodedGameDevice;
     private readonly bool _alternateRedirections;
+    private readonly IReadOnlyDictionary<string, double> _classicVolumes;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
 
-    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState, bool encodedGameDevice, bool alternateRedirections)
+    private FakeSonarServer(HttpListener listener, int port, string mode, bool failPut, int chatMixState, bool encodedGameDevice, bool alternateRedirections, IReadOnlyDictionary<string, double> classicVolumes)
     {
         _listener = listener;
         _mode = mode;
@@ -591,6 +708,7 @@ sealed class FakeSonarServer : IDisposable
         _chatMixState = chatMixState;
         _encodedGameDevice = encodedGameDevice;
         _alternateRedirections = alternateRedirections;
+        _classicVolumes = classicVolumes;
         BaseUrl = $"http://127.0.0.1:{port}";
         _loop = Task.Run(ServeAsync);
     }
@@ -601,13 +719,13 @@ sealed class FakeSonarServer : IDisposable
     public string? LastPutPath { get; private set; }
     public string? LastPutQuery { get; private set; }
 
-    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1, bool encodedGameDevice = false, bool alternateRedirections = false)
+    public static FakeSonarServer Start(string mode, bool failPut = false, int chatMixState = 1, bool encodedGameDevice = false, bool alternateRedirections = false, IReadOnlyDictionary<string, double>? classicVolumes = null)
     {
         var port = GetFreeTcpPort();
         var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
-        return new FakeSonarServer(listener, port, mode, failPut, chatMixState, encodedGameDevice, alternateRedirections);
+        return new FakeSonarServer(listener, port, mode, failPut, chatMixState, encodedGameDevice, alternateRedirections, DefaultClassicVolumes(classicVolumes));
     }
 
     public void Dispose()
@@ -782,30 +900,7 @@ sealed class FakeSonarServer : IDisposable
 
         if (path is "/VolumeSettings/classic" or "/VolumeSettings/streamer")
         {
-            await WriteAsync(context, """
-            {
-              "Masters": {
-                "Classic": { "Volume": 0.5, "Muted": false },
-                "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
-              },
-              "Devices": {
-                "Game": {
-                  "Classic": { "Volume": 0.5, "Muted": false },
-                  "Stream": {
-                    "Monitoring": { "Volume": 0.5, "Muted": false },
-                    "Streaming": { "Volume": 0.7, "Muted": false }
-                  }
-                },
-                "ChatRender": {
-                  "Classic": { "Volume": 0.5, "Muted": false },
-                  "Stream": {
-                    "Monitoring": { "Volume": 0.5, "Muted": false },
-                    "Streaming": { "Volume": 0.7, "Muted": true }
-                  }
-                }
-              }
-            }
-            """);
+            await WriteAsync(context, BuildVolumeSettingsJson());
             return;
         }
 
@@ -820,6 +915,80 @@ sealed class FakeSonarServer : IDisposable
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes);
         context.Response.Close();
+    }
+
+    private string BuildVolumeSettingsJson()
+    {
+        return $$"""
+        {
+          "Masters": {
+            "Classic": { "Volume": {{VolumeScalar("master")}}, "Muted": false },
+            "Stream": { "Monitoring": { "Volume": 0.5, "Muted": false } }
+          },
+          "Devices": {
+            "Game": {
+              "Classic": { "Volume": {{VolumeScalar("game")}}, "Muted": false },
+              "Stream": {
+                "Monitoring": { "Volume": 0.5, "Muted": false },
+                "Streaming": { "Volume": 0.7, "Muted": false }
+              }
+            },
+            "ChatRender": {
+              "Classic": { "Volume": {{VolumeScalar("chatRender")}}, "Muted": false },
+              "Stream": {
+                "Monitoring": { "Volume": 0.5, "Muted": false },
+                "Streaming": { "Volume": 0.7, "Muted": true }
+              }
+            },
+            "Media": {
+              "Classic": { "Volume": {{VolumeScalar("media")}}, "Muted": false },
+              "Stream": {
+                "Monitoring": { "Volume": 0.5, "Muted": false },
+                "Streaming": { "Volume": 0.7, "Muted": false }
+              }
+            },
+            "Aux": {
+              "Classic": { "Volume": {{VolumeScalar("aux")}}, "Muted": false },
+              "Stream": {
+                "Monitoring": { "Volume": 0.5, "Muted": false },
+                "Streaming": { "Volume": 0.7, "Muted": false }
+              }
+            },
+            "ChatCapture": {
+              "Classic": { "Volume": {{VolumeScalar("chatCapture")}}, "Muted": false },
+              "Stream": {
+                "Monitoring": { "Volume": 0.5, "Muted": false },
+                "Streaming": { "Volume": 0.7, "Muted": false }
+              }
+            }
+          }
+        }
+        """;
+    }
+
+    private string VolumeScalar(string role)
+    {
+        var percent = _classicVolumes.TryGetValue(role, out var value) ? value : 50;
+        return (Math.Clamp(percent, 0, 100) / 100.0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static IReadOnlyDictionary<string, double> DefaultClassicVolumes(IReadOnlyDictionary<string, double>? overrides)
+    {
+        var values = new Dictionary<string, double>
+        {
+            ["master"] = 50,
+            ["game"] = 50,
+            ["chatRender"] = 50,
+            ["media"] = 50,
+            ["aux"] = 50,
+            ["chatCapture"] = 50
+        };
+        if (overrides != null)
+        {
+            foreach (var item in overrides) values[item.Key] = item.Value;
+        }
+
+        return values;
     }
 
     private static int GetFreeTcpPort()

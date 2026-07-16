@@ -18,7 +18,8 @@ Streamer mode routes and UI fields may still appear in the plugin for diagnostic
 - `Sonar Mixer Mute`: toggles mute for one Sonar mixer target.
 - `Sonar Mixer Overview`: shows selected Sonar mixer target states on the Stream Dock key.
 - `Sonar ChatMix`: moves ChatMix toward Chat/Game or resets it to center.
-- `Sonar ChatMix Dial`: adjusts ChatMix with a knob; dial press resets to center.
+- `Sonar ChatMix Dial`: adjusts Sonar's native ChatMix with a knob; dial press resets to center. If a headset hardware ChatMix dial is active, Sonar may make the digital ChatMix slider read-only and this action cannot override it.
+- `Sonar Virtual ChatMix Dial`: simulates ChatMix by changing two selected mixer channel volumes in opposite directions. It defaults to Game/Chat and can be configured to any two Sonar mixer targets.
 - `Sonar Output Device`: switches a Sonar output device by configured Sonar `deviceId`.
 - `Sonar Rotate Output`: rotates a selected Sonar output target to the next active non-virtual render device; key/knob press applies the configured `deviceId`.
 - `Sonar Input Device`: switches the Sonar microphone input device by configured Sonar `deviceId`.
@@ -77,7 +78,9 @@ Rotate actions use `/FallbackSettings/lists` by default so excluded devices are 
 Rotate actions support knob rotation. `Rotate ticks` controls how many dial ticks are required before a rotated device switch is applied.
 `Sonar Profile` loads profiles from `/Configs`, filters by `virtualAudioDevice`, shows the selected profile from `/Configs/selected`, and applies a profile with `/Configs/{profileId}/select`.
 The Property Inspector stores `invert` for knob direction. Existing `invertKnob` settings are still accepted for compatibility.
-If `/ChatMix` reports a disabled state, ChatMix actions show a user-visible error instead of silently applying no audible change.
+Native ChatMix actions use Sonar's `/ChatMix` route. If a headset hardware ChatMix dial is controlling Sonar, GG can gray out the digital ChatMix slider and return a read-only error such as `Cannot be modified while in readonly mode`; the plugin shows that error and does not fall back to volume changes. If `/ChatMix` reports a disabled state, ChatMix actions show a user-visible error instead of silently applying no audible change.
+
+`Sonar Virtual ChatMix Dial` is separate from native ChatMix. It works only in Normal mode and writes normal channel volumes under `/VolumeSettings/classic/...`. The default pair is Game as primary and Chat as secondary, with advanced settings for any two mixer targets. `Diff step` is the relative difference applied per operation and is stored as an even value from `2` to `100`; odd manual input is rounded up (`1` becomes `2`, `99` becomes `100`). A positive dial operation makes the primary target stronger and the secondary weaker. If one side is already at `0%` or `100%`, the remaining difference is applied to the other side, so a `10%` diff step at Game `100%` lowers Chat by `10%`. `Rotate ticks` controls how many hardware dial ticks are required before one virtual ChatMix step is applied, and defaults to `3`. Pressing the dial resets the pair to center by setting both selected targets to their average volume. The two volume writes are not atomic; if Sonar accepts one update and rejects the other, the plugin reports the error but does not roll back the first write.
 
 `500 Cannot be called in current mode` and other HTTP errors are shown as action errors and sent to Diagnostics. The plugin does not fall back to Windows device/session control.
 The plugin does not use Windows primary device, WASAPI, or helper fallback for normal volume/mute operations.
