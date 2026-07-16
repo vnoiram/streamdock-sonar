@@ -14,6 +14,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("overview selected targets render states", OverviewSelectedTargetsRenderStatesAsync),
     ("overview missing target renders error cell", OverviewMissingTargetRendersErrorCellAsync),
     ("chatmix get and set uses ChatMix route", ChatMixGetAndSetUsesRouteAsync),
+    ("stale sonar endpoint rediscovered and original request retried", StaleSonarEndpointRediscoveredAndOriginalRequestRetriedAsync),
     ("chatmix disabled is user visible error", ChatMixDisabledIsUserVisibleErrorAsync),
     ("settings support negative step and invert alias", SettingsSupportNegativeStepAndInvertAlias),
     ("classic output device uses classic redirection route", ClassicOutputDeviceUsesRedirectionRouteAsync),
@@ -207,6 +208,24 @@ static async Task ChatMixDisabledIsUserVisibleErrorAsync()
     }
 
     throw new InvalidOperationException("Expected disabled ChatMix error");
+}
+
+static async Task StaleSonarEndpointRediscoveredAndOriginalRequestRetriedAsync()
+{
+    var staleServer = FakeSonarServer.Start("classic");
+    var staleBaseUrl = staleServer.BaseUrl;
+    staleServer.Dispose();
+
+    using var newServer = FakeSonarServer.Start("classic");
+    using var coreServer = FakeCoreServer.Start(newServer.BaseUrl);
+    using var client = new SonarClient(staleBaseUrl, [coreServer.SubAppsUrl]);
+
+    var result = await client.SetChatMixBalanceAsync(-0.25);
+
+    AssertEqual(true, result.Success, "retry success");
+    AssertEqual("/ChatMix", newServer.LastPutPath, "retried put path");
+    AssertEqual("balance=-0.25", newServer.LastPutQuery, "retried put query");
+    AssertEqual(1, coreServer.RequestCount, "rediscovery request count");
 }
 
 static Task SettingsSupportNegativeStepAndInvertAlias()
@@ -792,6 +811,103 @@ sealed class FakeSonarServer : IDisposable
 
         context.Response.StatusCode = 404;
         await WriteAsync(context, "{}");
+    }
+
+    private static async Task WriteAsync(HttpListenerContext context, string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        context.Response.ContentType = "application/json";
+        context.Response.ContentLength64 = bytes.Length;
+        await context.Response.OutputStream.WriteAsync(bytes);
+        context.Response.Close();
+    }
+
+    private static int GetFreeTcpPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+}
+
+sealed class FakeCoreServer : IDisposable
+{
+    private readonly HttpListener _listener;
+    private readonly string _sonarBaseUrl;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Task _loop;
+
+    private FakeCoreServer(HttpListener listener, int port, string sonarBaseUrl)
+    {
+        _listener = listener;
+        _sonarBaseUrl = sonarBaseUrl;
+        BaseUrl = $"http://127.0.0.1:{port}";
+        _loop = Task.Run(ServeAsync);
+    }
+
+    public string BaseUrl { get; }
+    public string SubAppsUrl => $"{BaseUrl}/subApps";
+    public int RequestCount { get; private set; }
+
+    public static FakeCoreServer Start(string sonarBaseUrl)
+    {
+        var port = GetFreeTcpPort();
+        var listener = new HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        return new FakeCoreServer(listener, port, sonarBaseUrl);
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _listener.Close();
+        try { _loop.Wait(TimeSpan.FromSeconds(1)); } catch { }
+        _cts.Dispose();
+    }
+
+    private async Task ServeAsync()
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            HttpListenerContext context;
+            try
+            {
+                context = await _listener.GetContextAsync();
+            }
+            catch
+            {
+                return;
+            }
+
+            _ = Task.Run(() => HandleAsync(context));
+        }
+    }
+
+    private async Task HandleAsync(HttpListenerContext context)
+    {
+        RequestCount++;
+        if (context.Request.Url?.AbsolutePath != "/subApps")
+        {
+            context.Response.StatusCode = 404;
+            await WriteAsync(context, "{}");
+            return;
+        }
+
+        await WriteAsync(context, $$"""
+        {
+          "subApps": {
+            "sonar": {
+              "isEnabled": true,
+              "isReady": true,
+              "isRunning": true,
+              "metadata": {
+                "webServerAddress": "{{_sonarBaseUrl}}"
+              }
+            }
+          }
+        }
+        """);
     }
 
     private static async Task WriteAsync(HttpListenerContext context, string text)

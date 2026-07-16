@@ -56,6 +56,7 @@ Numeric values are volume percentages. `M` means muted, and `ERR` means that tar
 ## Runtime Behavior
 
 The plugin discovers Sonar from SteelSeries `coreProps.json` and `https://127.0.0.1:6327/subApps`, then reads `subApps.sonar.metadata.webServerAddress`. Only loopback Sonar URLs are accepted.
+If the cached Sonar endpoint stops accepting connections, the plugin treats three consecutive connection failures as a stale endpoint, discovers Sonar again, and retries the original request once against the refreshed endpoint.
 
 The supported runtime path is Normal mode only:
 

@@ -8,10 +8,13 @@ public sealed class SonarClient : IDisposable
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(SonarClient));
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private const int ConnectionFailureRediscoveryThreshold = 3;
     private readonly HttpClient _httpClient;
+    private readonly IReadOnlyList<string>? _discoveryUrls;
     private string? _baseUrl;
+    private int _connectionFailureCount;
 
-    public SonarClient(string? baseUrl = null)
+    public SonarClient(string? baseUrl = null, IEnumerable<string>? discoveryUrls = null)
     {
         var handler = new HttpClientHandler
         {
@@ -22,6 +25,7 @@ public sealed class SonarClient : IDisposable
             Timeout = TimeSpan.FromSeconds(2.5)
         };
         _baseUrl = baseUrl?.TrimEnd('/');
+        _discoveryUrls = discoveryUrls?.ToArray();
     }
 
     public SonarOperationResult? LastResult { get; private set; }
@@ -642,12 +646,45 @@ public sealed class SonarClient : IDisposable
 
     private async Task<HttpResponseMessage> SendAsync(string route, HttpMethod method, CancellationToken cancellationToken, HttpContent? content = null)
     {
+        var lastFailureWasConnectionFailure = false;
+        for (var attempt = 1; attempt <= ConnectionFailureRediscoveryThreshold; attempt++)
+        {
+            try
+            {
+                var response = await SendOnceAsync(route, method, cancellationToken, content);
+                Interlocked.Exchange(ref _connectionFailureCount, 0);
+                return response;
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested && IsConnectionFailure(ex))
+            {
+                lastFailureWasConnectionFailure = true;
+                var failureCount = Interlocked.Increment(ref _connectionFailureCount);
+                Log.Warn($"Sonar request connection failed count={failureCount} route={route}: {ex.Message}");
+                if (failureCount < ConnectionFailureRediscoveryThreshold || content != null)
+                    continue;
+
+                Log.Warn("Sonar endpoint stale; rediscovering");
+                _baseUrl = null;
+                Interlocked.Exchange(ref _connectionFailureCount, 0);
+                var response = await SendOnceAsync(route, method, cancellationToken, content, isRetry: true);
+                Interlocked.Exchange(ref _connectionFailureCount, 0);
+                return response;
+            }
+        }
+
+        throw new HttpRequestException(lastFailureWasConnectionFailure
+            ? $"Sonar request failed after {ConnectionFailureRediscoveryThreshold} connection attempts"
+            : "Sonar request failed");
+    }
+
+    private async Task<HttpResponseMessage> SendOnceAsync(string route, HttpMethod method, CancellationToken cancellationToken, HttpContent? content = null, bool isRetry = false)
+    {
         var baseUrl = await DiscoverAsync(cancellationToken);
         var uri = new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), route.TrimStart('/'));
         if (!IsLoopbackHttpUrl(uri.ToString()))
             throw new InvalidOperationException("Refusing non-loopback Sonar URL");
 
-        Log.Info($"Sonar request {method} {uri.PathAndQuery}");
+        Log.Info($"Sonar {(isRetry ? "retry " : "")}request {method} {uri.PathAndQuery}");
         using var request = new HttpRequestMessage(method, uri) { Content = content };
         return await _httpClient.SendAsync(request, cancellationToken);
     }
@@ -1039,8 +1076,15 @@ public sealed class SonarClient : IDisposable
         return false;
     }
 
-    private static IEnumerable<string> CandidateSubAppsUrls()
+    private IEnumerable<string> CandidateSubAppsUrls()
     {
+        if (_discoveryUrls != null)
+        {
+            foreach (var discoveryUrl in _discoveryUrls)
+                yield return discoveryUrl;
+            yield break;
+        }
+
         foreach (var file in CandidateCorePropsFiles())
         {
             if (!File.Exists(file)) continue;
@@ -1082,5 +1126,10 @@ public sealed class SonarClient : IDisposable
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
         return (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
                (uri.IsLoopback || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsConnectionFailure(Exception ex)
+    {
+        return ex is HttpRequestException or TaskCanceledException;
     }
 }
